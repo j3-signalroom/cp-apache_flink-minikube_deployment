@@ -236,8 +236,8 @@ kafka-ui-open: ## Port-forward Kafka UI and open it in your browser
 	kubectl port-forward -n $(NAMESPACE) svc/kafka-ui $(KAFKA_UI_PORT):80
 
 .PHONY: kafka-ui-uninstall
-kafka-ui-uninstall: ## Uninstall Kafka UI
-	helm uninstall kafka-ui -n $(NAMESPACE)
+kafka-ui-uninstall: ## Uninstall Kafka UI (safe to run even if not installed)
+	@helm uninstall kafka-ui -n $(NAMESPACE) 2>/dev/null || echo "→ kafka-ui not installed, skipping."
 	@echo "✔ Kafka UI removed."
 
 # ------------------------------------------------------------------------------

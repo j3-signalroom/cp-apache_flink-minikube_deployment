@@ -104,8 +104,8 @@ operator-status: ## Verify the Confluent Operator pod is running
 	kubectl get pods -n $(NAMESPACE)
 
 .PHONY: operator-uninstall
-operator-uninstall: ## Uninstall the Confluent Operator Helm release
-	helm uninstall confluent-operator -n $(NAMESPACE)
+operator-uninstall: ## Uninstall the Confluent Operator Helm release (safe to run even if not installed)
+	@helm uninstall confluent-operator -n $(NAMESPACE) 2>/dev/null || echo "→ confluent-operator not installed, skipping."
 
 # ------------------------------------------------------------------------------
 # Phase 4: Deploy Confluent Platform (KRaft mode)
@@ -126,8 +126,8 @@ platform-status: ## Show current pod status for all CP components
 	kubectl get pods -n $(NAMESPACE)
 
 .PHONY: platform-delete
-platform-delete: ## Remove all CP components deployed via the manifest
-	kubectl delete -f $(TUTORIAL_HOME)/confluent-platform-c3++.yaml
+platform-delete: ## Remove all CP components deployed via the manifest (safe to run even if not deployed)
+	@kubectl delete -f $(TUTORIAL_HOME)/confluent-platform-c3++.yaml 2>/dev/null || echo "→ CP components not found, skipping."
 
 # ------------------------------------------------------------------------------
 # Phase 5: Control Center access
@@ -168,8 +168,8 @@ flink-operator-status: ## Check Flink operator pod status
 	kubectl get pods -n $(NAMESPACE) | grep flink
 
 .PHONY: flink-operator-uninstall
-flink-operator-uninstall: ## Uninstall the Flink Kubernetes Operator
-	helm uninstall flink-kubernetes-operator -n $(NAMESPACE)
+flink-operator-uninstall: ## Uninstall the Flink Kubernetes Operator (safe to run even if not installed)
+	@helm uninstall flink-kubernetes-operator -n $(NAMESPACE) 2>/dev/null || echo "→ flink-kubernetes-operator not installed, skipping."
 
 .PHONY: flink-deploy
 flink-deploy: ## Deploy a Flink session cluster ($(FLINK_IMAGE))
@@ -200,8 +200,8 @@ flink-ui: ## Port-forward the Flink UI and open it in your browser
 	kubectl port-forward -n $(NAMESPACE) $$FLINK_POD $(FLINK_UI_PORT):$(FLINK_UI_PORT)
 
 .PHONY: flink-delete
-flink-delete: ## Delete the Flink session cluster
-	kubectl delete flinkdeployment $(FLINK_CLUSTER_NAME) -n $(NAMESPACE) --ignore-not-found=true
+flink-delete: ## Delete the Flink session cluster (safe to run even if not deployed)
+	@kubectl delete flinkdeployment $(FLINK_CLUSTER_NAME) -n $(NAMESPACE) --ignore-not-found=true
 	@echo "✔ Flink cluster '$(FLINK_CLUSTER_NAME)' deleted."
 
 # ------------------------------------------------------------------------------

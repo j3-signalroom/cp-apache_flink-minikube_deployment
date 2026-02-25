@@ -174,27 +174,9 @@ flink-operator-uninstall: ## Uninstall the Flink Kubernetes Operator
 .PHONY: flink-deploy
 flink-deploy: ## Deploy a Flink session cluster ($(FLINK_IMAGE))
 	@echo "→ Deploying Flink session cluster '$(FLINK_CLUSTER_NAME)' with image $(FLINK_IMAGE)..."
-	@kubectl apply -f - <<EOF
-apiVersion: flink.apache.org/v1beta1
-kind: FlinkDeployment
-metadata:
-  name: $(FLINK_CLUSTER_NAME)
-  namespace: $(NAMESPACE)
-spec:
-  image: $(FLINK_IMAGE)
-  flinkVersion: $(FLINK_VERSION)
-  flinkConfiguration:
-    taskmanager.numberOfTaskSlots: "2"
-  serviceAccount: flink
-  jobManager:
-    resource:
-      memory: "1024m"
-      cpu: 0.5
-  taskManager:
-    resource:
-      memory: "1024m"
-      cpu: 0.5
-EOF
+	@printf 'apiVersion: flink.apache.org/v1beta1\nkind: FlinkDeployment\nmetadata:\n  name: %s\n  namespace: %s\nspec:\n  image: %s\n  flinkVersion: %s\n  flinkConfiguration:\n    taskmanager.numberOfTaskSlots: "2"\n  serviceAccount: flink\n  jobManager:\n    resource:\n      memory: "1024m"\n      cpu: 0.5\n  taskManager:\n    resource:\n      memory: "1024m"\n      cpu: 0.5\n' \
+		"$(FLINK_CLUSTER_NAME)" "$(NAMESPACE)" "$(FLINK_IMAGE)" "$(FLINK_VERSION)" \
+		| kubectl apply -f -
 	@echo "✔ Flink cluster '$(FLINK_CLUSTER_NAME)' deployed."
 
 .PHONY: flink-status

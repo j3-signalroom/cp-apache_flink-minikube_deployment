@@ -145,7 +145,7 @@ c3-open: ## Port-forward Control Center and open it in your browser
 .PHONY: flink-cert-manager
 flink-cert-manager: ## Install cert-manager (required by Flink Kubernetes Operator)
 	@echo "→ Installing cert-manager..."
-	kubectl create -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml
+	kubectl apply -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml
 	@echo "→ Waiting for cert-manager pods to be ready..."
 	kubectl wait --for=condition=ready pod -l app=cert-manager -n cert-manager --timeout=120s
 	kubectl wait --for=condition=ready pod -l app=cainjector -n cert-manager --timeout=120s
@@ -244,8 +244,11 @@ kafka-ui-uninstall: ## Uninstall Kafka UI (safe to run even if not installed)
 # Composite workflows
 # ------------------------------------------------------------------------------
 .PHONY: up
-up: check-prereqs minikube-start cp-core-up ## Full stack: start Minikube → cp-core-up → (optionally) flink-up
-	@echo "  To add Flink, run 'make flink-up'."
+up: check-prereqs minikube-start cp-core-up kafka-ui-install ## Full stack: Minikube → cp-core-up → kafka-ui (run 'make flink-up' separately for Flink)
+	@echo ""
+	@echo "✔ Confluent Platform and Kafka UI are deploying."
+	@echo "  Run 'make platform-watch' to monitor pod startup."
+	@echo "  Run 'make flink-up' to also deploy Apache Flink."
 
 .PHONY: cp-core-up
 cp-core-up: operator-install platform-deploy ## Phases 3-5: install CFK Operator → deploy CP → access Control Center

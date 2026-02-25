@@ -224,12 +224,15 @@ flink-delete: ## Delete the Flink session cluster
 # Composite workflows
 # ------------------------------------------------------------------------------
 .PHONY: up
-up: check-prereqs minikube-start operator-install platform-deploy ## Full stack: start Minikube → install Operator → deploy CP
+up: check-prereqs minikube-start cp-core-up ## Full stack: start Minikube → cp-core-up → (optionally) flink-up
+	@echo "  To add Flink, run 'make flink-up'."
+
+.PHONY: cp-core-up
+cp-core-up: operator-install platform-deploy ## Phases 3-5: install CFK Operator → deploy CP → access Control Center
 	@echo ""
 	@echo "✔ Confluent Platform is deploying."
 	@echo "  Run 'make platform-watch' to monitor pod startup."
 	@echo "  Once all pods are Running, run 'make c3-open' to access Control Center."
-	@echo "  To add Flink, run 'make flink-up'."
 
 .PHONY: flink-up
 flink-up: flink-cert-manager flink-operator-install flink-deploy ## Install cert-manager → Flink Operator → deploy Flink cluster

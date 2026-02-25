@@ -1,5 +1,5 @@
 # Minikube Confluent Platform Local Deployment
-This repository provides a Makefile-driven workflow to deploy Confluent Platform on a local Minikube cluster. It includes commands for setting up prerequisites, managing the Minikube cluster, installing the Confluent Kubernetes Operator, deploying CP components, and optionally deploying a Flink session cluster with the Flink Kubernetes Operator.
+This repo provides a Makefile-driven workflow to deploy Confluent Platform on a local Minikube cluster. It includes commands for setting up prerequisites, managing the Minikube cluster, installing the Confluent Kubernetes Operator, deploying CP components, and optionally deploying a Flink session cluster with the Flink Kubernetes Operator.
 
 ### Commands
 
@@ -29,12 +29,16 @@ This repository provides a Makefile-driven workflow to deploy Confluent Platform
 | `make flink-status` | 6 | Show Flink pods and FlinkDeployment CRs |
 | `make flink-ui` | 6 | Port-forward Flink UI and open in browser |
 | `make flink-delete` | 6 | Delete the Flink session cluster |
-| `make up` | Composite | Minikube + `cp-core-up` in one command |
+| `make kafka-ui-install` | 7 | Add Provectus Helm repo and install Kafka UI pre-wired to Confluent |
+| `make kafka-ui-status` | 7 | Check Kafka UI pod status |
+| `make kafka-ui-open` | 7 | Port-forward Kafka UI and open in browser |
+| `make kafka-ui-uninstall` | 7 | Uninstall Kafka UI |
+| `make up` | Composite | check-prereqs → minikube-start → cp-core-up |
 | `make cp-core-up` | Composite | Phases 3–5: CFK operator → CP deploy |
 | `make flink-up` | Composite | cert-manager → Flink operator → Flink cluster |
-| `make down` | Composite | Tear down CP and operator (keeps Minikube running) |
+| `make down` | Composite | Tear down Kafka UI, CP, and operator (keeps Minikube running) |
 | `make flink-down` | Composite | Tear down Flink cluster and operator |
-| `make teardown` | Composite | Full teardown: Flink + CP + namespace + stop Minikube |
+| `make teardown` | Composite | Full teardown: Flink + Kafka UI + CP + namespace + stop Minikube |
 
 ---
 
@@ -53,5 +57,6 @@ This repository provides a Makefile-driven workflow to deploy Confluent Platform
 | `FLINK_VERSION` | `v2_2` | Flink version string used in the FlinkDeployment CR |
 | `FLINK_CLUSTER_NAME` | `flink-basic` | Name of the deployed FlinkDeployment CR |
 | `FLINK_UI_PORT` | `8081` | Local port for Flink UI port-forward |
+| `KAFKA_UI_PORT` | `8080` | Local port for Kafka UI port-forward |
 
-Variables can be overridden at runtime, e.g. `make minikube-start MINIKUBE_MEM=24576`.
+Variables can be overridden at runtime, e.g. `make kafka-ui-open KAFKA_UI_PORT=9090`.

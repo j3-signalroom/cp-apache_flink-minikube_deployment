@@ -1,4 +1,4 @@
-# Minikube Confluent Platform Local Deployment
+# Minikube Confluent Platform Deployment
 This repo provides a Makefile-driven workflow to deploy Confluent Platform on a local Minikube cluster. It includes commands for setting up prerequisites, managing the Minikube cluster, installing the Confluent Kubernetes Operator, deploying CP components, and optionally deploying a Flink session cluster with the Flink Kubernetes Operator.
 
 ### Commands

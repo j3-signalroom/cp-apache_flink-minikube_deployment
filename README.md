@@ -1,4 +1,4 @@
-# Minikube for Confluent Platform Core Components Makefile
+# Minikube Confluent Platform Local Deployment
 
 The Makefile maps every section of the [tutorial](manual_deployment.md) to a clean, composable target. Here's a quick overview of the key workflows:
 

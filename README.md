@@ -60,3 +60,8 @@ This repo provides a Makefile-driven workflow to deploy Confluent Platform on a 
 | `KAFKA_UI_PORT` | `8080` | Local port for Kafka UI port-forward |
 
 Variables can be overridden at runtime, e.g. `make kafka-ui-open KAFKA_UI_PORT=9090`.
+
+
+```bash
+kubectl get services -n confluent
+```

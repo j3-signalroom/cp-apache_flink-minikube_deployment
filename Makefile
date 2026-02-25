@@ -2,6 +2,7 @@
 # Confluent Platform on Minikube - Quickstart Makefile
 # Deploys CP Core Components using Confluent for Kubernetes (CFK) in KRaft mode
 # + Apache Flink 2.2 via Flink Kubernetes Operator 1.14
+# + Kafka UI via Provectus Helm chart
 # ==============================================================================
 
 TUTORIAL_HOME        ?= https://raw.githubusercontent.com/confluentinc/confluent-kubernetes-examples/master/quickstart-deploy/kraft-quickstart
@@ -15,6 +16,7 @@ FLINK_IMAGE           ?= flink:2.2
 FLINK_VERSION         ?= v2_2
 FLINK_CLUSTER_NAME    ?= flink-basic
 FLINK_UI_PORT         ?= 8081
+KAFKA_UI_PORT         ?= 8080
 
 .DEFAULT_GOAL := help
 
@@ -221,6 +223,42 @@ flink-delete: ## Delete the Flink session cluster
 	@echo "✔ Flink cluster '$(FLINK_CLUSTER_NAME)' deleted."
 
 # ------------------------------------------------------------------------------
+# Phase 7: Kafka UI (Provectus)
+# ------------------------------------------------------------------------------
+.PHONY: kafka-ui-install
+kafka-ui-install: ## Install Kafka UI and connect it to the Confluent Kafka cluster
+	@echo "→ Adding Kafka UI Helm repo..."
+	helm repo add kafka-ui https://provectus.github.io/kafka-ui-charts
+	helm repo update
+	@echo "→ Installing Kafka UI..."
+	helm upgrade --install kafka-ui kafka-ui/kafka-ui \
+		--namespace $(NAMESPACE) \
+		--set yamlApplicationConfig.kafka.clusters[0].name="confluent" \
+		--set yamlApplicationConfig.kafka.clusters[0].bootstrapServers="kafka:9092" \
+		--set yamlApplicationConfig.kafka.clusters[0].schemaRegistry="http://schemaregistry:8081" \
+		--set yamlApplicationConfig.kafka.clusters[0].kafkaConnect[0].name="connect" \
+		--set yamlApplicationConfig.kafka.clusters[0].kafkaConnect[0].address="http://connect:8083" \
+		--set yamlApplicationConfig.auth.type="DISABLED" \
+		--set yamlApplicationConfig.management.health.ldap.enabled="false"
+	@echo "✔ Kafka UI installed."
+
+.PHONY: kafka-ui-status
+kafka-ui-status: ## Check Kafka UI pod status
+	kubectl get pods -n $(NAMESPACE) | grep kafka-ui
+
+.PHONY: kafka-ui-open
+kafka-ui-open: ## Port-forward Kafka UI and open it in your browser
+	@echo "→ Forwarding Kafka UI to http://localhost:$(KAFKA_UI_PORT)"
+	@echo "   Press Ctrl+C to stop."
+	@(sleep 2 && open http://localhost:$(KAFKA_UI_PORT)) &
+	kubectl port-forward -n $(NAMESPACE) svc/kafka-ui $(KAFKA_UI_PORT):80
+
+.PHONY: kafka-ui-uninstall
+kafka-ui-uninstall: ## Uninstall Kafka UI
+	helm uninstall kafka-ui -n $(NAMESPACE)
+	@echo "✔ Kafka UI removed."
+
+# ------------------------------------------------------------------------------
 # Composite workflows
 # ------------------------------------------------------------------------------
 .PHONY: up
@@ -242,15 +280,15 @@ flink-up: flink-cert-manager flink-operator-install flink-deploy ## Install cert
 	@echo "  Once running, open the Flink UI with 'make flink-ui'."
 
 .PHONY: down
-down: platform-delete operator-uninstall ## Tear down CP and Operator (keeps Minikube running)
-	@echo "✔ Confluent Platform and Operator removed."
+down: kafka-ui-uninstall platform-delete operator-uninstall ## Tear down Kafka UI, CP and Operator (keeps Minikube running)
+	@echo "✔ Confluent Platform, Kafka UI and Operator removed."
 
 .PHONY: flink-down
 flink-down: flink-delete flink-operator-uninstall ## Tear down Flink cluster and operator
 	@echo "✔ Flink cluster and operator removed."
 
 .PHONY: teardown
-teardown: flink-down down ## Full teardown: remove Flink, CP, Operator, namespace, and stop Minikube
+teardown: flink-down down ## Full teardown: remove Flink, Kafka UI, CP, Operator, namespace, and stop Minikube
 	kubectl delete namespace $(NAMESPACE) --ignore-not-found=true
 	$(MAKE) minikube-stop
 	@echo "✔ Full teardown complete."

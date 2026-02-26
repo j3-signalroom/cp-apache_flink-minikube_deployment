@@ -20,6 +20,9 @@ KAFKA_UI_PORT         ?= 8080
 FLINK_MANIFEST        ?= k8s/base/flink-basic-deployment.yaml
 CERT_MANAGER_VER      ?= v1.17.1
 
+SHELL                 := /bin/bash
+.SHELLFLAGS           := -eu -o pipefail -c
+
 .DEFAULT_GOAL := help
 
 # ------------------------------------------------------------------------------

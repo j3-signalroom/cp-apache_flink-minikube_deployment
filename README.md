@@ -351,7 +351,7 @@ make flink-deploy FLINK_IMAGE=flink:2.1 FLINK_VERSION=v2_1
         └── flink-basic-deployment.yaml # FlinkDeployment CR template
 ```
 
-The `flink-basic-deployment.yaml` is a template — `FLINK_IMAGE` and `FLINK_VERSION` are substituted at deploy time via `envsubst`. Do not apply it directly with `kubectl apply`.
+> The `flink-basic-deployment.yaml` is a template, `FLINK_IMAGE` and `FLINK_VERSION` are substituted at deploy time via `envsubst`. Do not apply it directly with `kubectl apply`.
 
 ---
 

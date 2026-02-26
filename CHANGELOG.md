@@ -6,6 +6,7 @@ The format is base on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), 
 
 ## [0.02.00.000] - 2026-02-26
 ### Added
+- Issue [`#24`](https://github.com/j3-signalroom/minikube-cp_deployment/issues/24)
 - Issue [`#26`](https://github.com/j3-signalroom/minikube-cp_deployment/issues/26)
 - Issue [`#28`](https://github.com/j3-signalroom/minikube-cp_deployment/issues/28)
 - Issue [`#29`](https://github.com/j3-signalroom/minikube-cp_deployment/issues/29)

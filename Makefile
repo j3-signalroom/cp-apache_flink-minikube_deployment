@@ -203,9 +203,10 @@ flink-ui: ## Port-forward the Flink UI and open it in your browser
 	kubectl port-forward -n $(NAMESPACE) $$FLINK_POD $(FLINK_UI_PORT):$(FLINK_UI_PORT)
 
 .PHONY: flink-delete
-flink-delete: ## Delete the Flink session cluster (safe to run even if not deployed)
-	@kubectl delete flinkdeployment $(FLINK_CLUSTER_NAME) -n $(NAMESPACE) --ignore-not-found=true
-	@echo "✔ Flink cluster '$(FLINK_CLUSTER_NAME)' deleted."
+flink-delete: ## Delete the Flink session cluster (safe to run even if cluster is down or not deployed)
+	@kubectl delete flinkdeployment $(FLINK_CLUSTER_NAME) -n $(NAMESPACE) --ignore-not-found=true 2>/dev/null \
+		&& echo "✔ Flink cluster '$(FLINK_CLUSTER_NAME)' deleted." \
+		|| echo "→ Flink cluster not found or API server unreachable, skipping."
 
 # ------------------------------------------------------------------------------
 # Phase 7: Kafka UI (Provectus)
@@ -283,7 +284,11 @@ cert-manager-uninstall: ## Uninstall cert-manager (safe to run even if not insta
 		|| echo "→ cert-manager not installed, skipping."
 
 .PHONY: teardown
-teardown: flink-down down ## Full teardown: remove Flink, Kafka UI, CP, Operator, namespace, and stop Minikube
-	kubectl delete namespace $(NAMESPACE) --ignore-not-found=true
+teardown: ## Full teardown: remove Flink, Kafka UI, CP, Operator, namespace, and stop Minikube
+	@minikube status --format='{{.Host}}' 2>/dev/null | grep -q "Running" \
+		|| (echo "✘ Minikube is not running — nothing to tear down." && exit 1)
+	$(MAKE) flink-down
+	$(MAKE) down
+	@kubectl delete namespace $(NAMESPACE) --ignore-not-found=true 2>/dev/null || echo "→ Namespace $(NAMESPACE) not found, skipping."
 	$(MAKE) minikube-stop
 	@echo "✔ Full teardown complete."

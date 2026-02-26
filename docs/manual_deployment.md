@@ -34,8 +34,9 @@ By the end of this guide, you will have a fully functional Confluent Platform ru
   + [**5.2 Install Kafka UI**](#52-install-kafka-ui)
   + [**5.3 Verify the installation**](#53-verify-the-installation)
   + [**5.4 Open the UI**](#54-open-the-ui)
-- [**6.0 Glossary**](#60-glossary)
-- [**7.0 Kubernetes Nautical Theme**](#70-kubernetes-nautical-theme)
+- [**6.0 Teardown Kafka UI**](#60-teardown-kafka-ui)
+- [**7.0 Glossary**](#70-glossary)
+- [**8.0 Kubernetes Nautical Theme**](#80-kubernetes-nautical-theme)
 <!-- tocstop -->
 
 ## **1.0 MacOS prerequisites setup**
@@ -219,7 +220,13 @@ kubectl port-forward -n confluent svc/kafka-ui 8080:80
 
 Then open `http://localhost:8080` in your browser. Note the asymmetry: the service listens on port `80` internally, forwarded to `8080` locally.
 
-## **6.0 Glossary**
+## **6.0 Teardown Kafka UI**
+To remove Kafka UI from the cluster, run:
+```bash
+helm uninstall kafka-ui -n confluent
+```
+
+## **7.0 Glossary**
 | Term | Description |
 | --- | --- |
 | **CFK** | Confluent for Kubernetes, a set of Kubernetes Operators for deploying and managing Confluent Platform on Kubernetes. |
@@ -231,7 +238,7 @@ Then open `http://localhost:8080` in your browser. Note the asymmetry: the servi
 | **Webhook** | A way to extend Kubernetes API by intercepting API requests and modifying them or validating them. |
 | **CR** | Custom Resource, an instance of a CRD that represents a specific configuration or state in the cluster. | 
 
-## **7.0 Kubernetes Nautical Theme**
+## **8.0 Kubernetes Nautical Theme**
 The nautical theme runs throughout the Kubernetes ecosystem:
 
 | Term | Description |

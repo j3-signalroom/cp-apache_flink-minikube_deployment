@@ -35,8 +35,18 @@ By the end of this guide, you will have a fully functional Confluent Platform ru
   + [**5.3 Verify the installation**](#53-verify-the-installation)
   + [**5.4 Open the UI**](#54-open-the-ui)
 - [**6.0 Teardown Kafka UI**](#60-teardown-kafka-ui)
-- [**7.0 Glossary**](#70-glossary)
-- [**8.0 Kubernetes Nautical Theme**](#80-kubernetes-nautical-theme)
+- [**7.0 Deploy Apache Flink on Kubernetes with the Flink Operator**](#70-deploy-apache-flink-on-kubernetes-with-the-flink-operator)
+  + [**7.1 Install cert-manager**](#71-install-cert-manager)
+  + [**7.2 Install the Flink Kubernetes Operator**](#72-install-the-flink-kubernetes-operator)
+  + [**7.3 Deploy the Flink session cluster**](#73-deploy-the-flink-session-cluster)
+  + [**7.4 Verify**](#74-verify)
+  + [**7.5 Open the Flink UI**](#75-open-the-flink-ui)
+- [**8.0 Teardown Flink**](#80-teardown-flink)
+  + [**8.1 Remove Flink cluster**](#81-remove-flink-cluster)
+  + [**8.2 Remove Flink Operator**](#82-remove-flink-operator)
+  + [**8.3 Remove cert-manager**](#83-remove-cert-manager)
+- [**9.0 Glossary**](#90-glossary)
+- [**10.0 Kubernetes Nautical Theme**](#100-kubernetes-nautical-theme)
 <!-- tocstop -->
 
 ## **1.0 MacOS prerequisites setup**
@@ -226,7 +236,75 @@ To remove Kafka UI from the cluster, run:
 helm uninstall kafka-ui -n confluent
 ```
 
-## **7.0 Glossary**
+## **7.0 Deploy Apache Flink on Kubernetes with the Flink Operator**
+
+### **7.1 Install cert-manager**
+```bash
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.17.1/cert-manager.yaml
+```
+
+Then wait for all three components to be ready before proceeding — the Flink operator webhook will fail silently if cert-manager isn't fully up:
+
+```bash
+kubectl wait --for=condition=ready pod -l app=cert-manager -n cert-manager --timeout=120s
+kubectl wait --for=condition=ready pod -l app=cainjector -n cert-manager --timeout=120s
+kubectl wait --for=condition=ready pod -l app=webhook    -n cert-manager --timeout=120s
+```
+
+### **7.2 Install the Flink Kubernetes Operator**
+```bash
+helm repo add flink-operator-repo https://downloads.apache.org/flink/flink-kubernetes-operator-1.14.0/
+helm repo update
+
+helm upgrade --install flink-kubernetes-operator flink-operator-repo/flink-kubernetes-operator \
+  --namespace confluent \
+  --set webhook.create=false
+```
+
+`webhook.create=false` is intentional — on Minikube the admission webhook causes install failures, so we let cert-manager handle TLS without registering the webhook.
+
+### **7.3 Deploy the Flink session cluster**
+```bash
+FLINK_IMAGE=flink:2.2 FLINK_VERSION=v2_2 \
+  envsubst '$FLINK_IMAGE $FLINK_VERSION' < k8s/base/flink-basic-deployment.yaml \
+  | kubectl apply -f -
+```
+
+### **7.4 Verify**
+```bash
+kubectl get pods -n confluent | grep flink
+kubectl get flinkdeployment -n confluent
+```
+
+### **7.5 Open the Flink UI**
+Once the JobManager pod is `Running`, open the UI:
+
+```bash
+FLINK_POD=$(kubectl get pods -n confluent -l component=jobmanager --no-headers -o custom-columns=":metadata.name" | head -1)
+kubectl port-forward -n confluent $FLINK_POD 8081:8081
+```
+
+## **8.0 Teardown Flink**
+
+### **8.1 Remove Flink cluster**
+
+```bash
+kubectl delete flinkdeployment flink-basic -n confluent --ignore-not-found=true
+```
+
+### **8.2 Remove Flink Operator**
+
+```bash
+helm uninstall flink-kubernetes-operator -n confluent
+```
+
+### **8.3 Remove cert-manager**
+
+```bash
+kubectl delete -f https://github.com/jetstack/cert-manager/releases/download/v1.17.1/cert-manager.yaml --ignore-not-found=true
+```
+
+## **9.0 Glossary**
 | Term | Description |
 | --- | --- |
 | **CFK** | Confluent for Kubernetes, a set of Kubernetes Operators for deploying and managing Confluent Platform on Kubernetes. |
@@ -238,7 +316,7 @@ helm uninstall kafka-ui -n confluent
 | **Webhook** | A way to extend Kubernetes API by intercepting API requests and modifying them or validating them. |
 | **CR** | Custom Resource, an instance of a CRD that represents a specific configuration or state in the cluster. | 
 
-## **8.0 Kubernetes Nautical Theme**
+## **10.0 Kubernetes Nautical Theme**
 The nautical theme runs throughout the Kubernetes ecosystem:
 
 | Term | Description |

@@ -271,8 +271,15 @@ down: kafka-ui-uninstall platform-delete operator-uninstall ## Tear down Kafka U
 	@echo "✔ Confluent Platform, Kafka UI and Operator removed."
 
 .PHONY: flink-down
-flink-down: flink-delete flink-operator-uninstall ## Tear down Flink cluster and operator
-	@echo "✔ Flink cluster and operator removed."
+flink-down: flink-delete flink-operator-uninstall cert-manager-uninstall ## Tear down Flink cluster, operator, and cert-manager
+	@echo "✔ Flink cluster, operator, and cert-manager removed."
+
+.PHONY: cert-manager-uninstall
+cert-manager-uninstall: ## Uninstall cert-manager (safe to run even if not installed)
+	@kubectl delete -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml \
+		--ignore-not-found=true 2>/dev/null \
+		&& echo "✔ cert-manager removed." \
+		|| echo "→ cert-manager not installed, skipping."
 
 .PHONY: teardown
 teardown: flink-down down ## Full teardown: remove Flink, Kafka UI, CP, Operator, namespace, and stop Minikube

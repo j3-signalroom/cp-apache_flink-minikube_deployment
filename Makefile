@@ -18,6 +18,7 @@ FLINK_CLUSTER_NAME    ?= flink-basic
 FLINK_UI_PORT         ?= 8081
 KAFKA_UI_PORT         ?= 8080
 FLINK_MANIFEST        ?= k8s/base/flink-basic-deployment.yaml
+CERT_MANAGER_VER      ?= v1.17.1
 
 .DEFAULT_GOAL := help
 
@@ -145,8 +146,8 @@ c3-open: ## Port-forward Control Center and open it in your browser
 # ------------------------------------------------------------------------------
 .PHONY: flink-cert-manager
 flink-cert-manager: ## Install cert-manager (required by Flink Kubernetes Operator)
-	@echo "→ Installing cert-manager..."
-	kubectl apply -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml
+	@echo "→ Installing cert-manager $(CERT_MANAGER_VER)..."
+	kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/$(CERT_MANAGER_VER)/cert-manager.yaml
 	@echo "→ Waiting for cert-manager pods to be ready..."
 	kubectl wait --for=condition=ready pod -l app=cert-manager -n cert-manager --timeout=120s
 	kubectl wait --for=condition=ready pod -l app=cainjector -n cert-manager --timeout=120s
@@ -276,7 +277,7 @@ flink-down: flink-delete flink-operator-uninstall cert-manager-uninstall ## Tear
 
 .PHONY: cert-manager-uninstall
 cert-manager-uninstall: ## Uninstall cert-manager (safe to run even if not installed)
-	@kubectl delete -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml \
+	@kubectl delete -f https://github.com/jetstack/cert-manager/releases/download/$(CERT_MANAGER_VER)/cert-manager.yaml \
 		--ignore-not-found=true 2>/dev/null \
 		&& echo "✔ cert-manager removed." \
 		|| echo "→ cert-manager not installed, skipping."

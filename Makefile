@@ -158,7 +158,7 @@ flink-cert-manager: ## Install cert-manager (required by Flink Kubernetes Operat
 	@echo "✔ cert-manager is ready."
 
 .PHONY: flink-operator-install
-flink-operator-install: ## Install the Flink Kubernetes Operator $(FLINK_OPERATOR_VER)
+flink-operator-install: namespace ## Install the Flink Kubernetes Operator $(FLINK_OPERATOR_VER)
 	@echo "→ Adding Flink Operator Helm repo (v$(FLINK_OPERATOR_VER))..."
 	helm repo add flink-operator-repo https://downloads.apache.org/flink/flink-kubernetes-operator-$(FLINK_OPERATOR_VER)/
 	helm repo update

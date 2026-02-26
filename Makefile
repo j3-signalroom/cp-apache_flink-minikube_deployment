@@ -17,6 +17,7 @@ FLINK_VERSION         ?= v2_2
 FLINK_CLUSTER_NAME    ?= flink-basic
 FLINK_UI_PORT         ?= 8081
 KAFKA_UI_PORT         ?= 8080
+FLINK_MANIFEST        ?= k8s/base/flink-basic-deployment.yaml
 
 .DEFAULT_GOAL := help
 
@@ -172,12 +173,13 @@ flink-operator-uninstall: ## Uninstall the Flink Kubernetes Operator (safe to ru
 	@helm uninstall flink-kubernetes-operator -n $(NAMESPACE) 2>/dev/null || echo "→ flink-kubernetes-operator not installed, skipping."
 
 .PHONY: flink-deploy
-flink-deploy: ## Deploy a Flink session cluster ($(FLINK_IMAGE))
-	@echo "→ Deploying Flink session cluster '$(FLINK_CLUSTER_NAME)' with image $(FLINK_IMAGE)..."
-	@printf 'apiVersion: flink.apache.org/v1beta1\nkind: FlinkDeployment\nmetadata:\n  name: %s\n  namespace: %s\nspec:\n  image: %s\n  flinkVersion: %s\n  flinkConfiguration:\n    taskmanager.numberOfTaskSlots: "2"\n  serviceAccount: flink\n  jobManager:\n    resource:\n      memory: "1024m"\n      cpu: 0.5\n  taskManager:\n    resource:\n      memory: "1024m"\n      cpu: 0.5\n' \
-		"$(FLINK_CLUSTER_NAME)" "$(NAMESPACE)" "$(FLINK_IMAGE)" "$(FLINK_VERSION)" \
-		| kubectl apply -f -
-	@echo "✔ Flink cluster '$(FLINK_CLUSTER_NAME)' deployed."
+flink-deploy: ## Deploy a Flink session cluster using $(FLINK_MANIFEST) (image=$(FLINK_IMAGE), version=$(FLINK_VERSION))
+	@echo "→ Deploying Flink session cluster from $(FLINK_MANIFEST) (image=$(FLINK_IMAGE), flinkVersion=$(FLINK_VERSION))..."
+	@test -f $(FLINK_MANIFEST) || (echo "✘ $(FLINK_MANIFEST) not found. Is it alongside the Makefile?" && exit 1)
+	@command -v envsubst >/dev/null 2>&1 || (echo "✘ envsubst not found. Install gettext: brew install gettext" && exit 1)
+	FLINK_IMAGE=$(FLINK_IMAGE) FLINK_VERSION=$(FLINK_VERSION) \
+		envsubst '$$FLINK_IMAGE $$FLINK_VERSION' < $(FLINK_MANIFEST) | kubectl apply -f -
+	@echo "✔ Flink cluster deployed (image=$(FLINK_IMAGE), flinkVersion=$(FLINK_VERSION))."
 
 .PHONY: flink-status
 flink-status: ## Show status of all Flink pods and FlinkDeployment CRs

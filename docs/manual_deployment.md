@@ -29,8 +29,13 @@ By the end of this guide, you will have a fully functional Confluent Platform ru
   - [**3.3 Verify the platform is running**](#33-verify-the-platform-is-running)
   - [**3.4 Access Control Center**](#34-access-control-center)
 - [**4.0 Teardown the CP Core Components**](#40-teardown-the-cp-core-components)
-- [**5.0 Glossary**](#50-glossary)
-- [**6.0 Kubernetes Nautical Theme**](#60-kubernetes-nautical-theme)
+- [**5.0 Deploy Provectus' Kafka UI**](#50-deploy-provectus-kafka-ui)
+  + [**5.1 Add the Helm repo**](#51-add-the-helm-repo)
+  + [**5.2 Install Kafka UI**](#52-install-kafka-ui)
+  + [**5.3 Verify the installation**](#53-verify-the-installation)
+  + [**5.4 Open the UI**](#54-open-the-ui)
+- [**6.0 Glossary**](#60-glossary)
+- [**7.0 Kubernetes Nautical Theme**](#70-kubernetes-nautical-theme)
 <!-- tocstop -->
 
 ## **1.0 MacOS prerequisites setup**
@@ -177,7 +182,44 @@ helm uninstall confluent-operator -n confluent
 kubectl delete namespace confluent
 ```
 
-## **5.0 Glossary**
+## **5.0 Deploy Provectus' Kafka UI**
+
+### **5.1 Add the Helm repo**
+```bash
+helm repo add kafka-ui https://provectus.github.io/kafka-ui-charts
+helm repo update
+```
+
+### **5.2 Install Kafka UI**
+```bash
+helm upgrade --install kafka-ui kafka-ui/kafka-ui \
+  --namespace confluent \
+  --set yamlApplicationConfig.kafka.clusters[0].name="confluent" \
+  --set yamlApplicationConfig.kafka.clusters[0].bootstrapServers="kafka:9092" \
+  --set yamlApplicationConfig.kafka.clusters[0].schemaRegistry="http://schemaregistry:8081" \
+  --set yamlApplicationConfig.kafka.clusters[0].kafkaConnect[0].name="connect" \
+  --set yamlApplicationConfig.kafka.clusters[0].kafkaConnect[0].address="http://connect:8083" \
+  --set yamlApplicationConfig.auth.type="DISABLED" \
+  --set yamlApplicationConfig.management.health.ldap.enabled="false"
+```
+
+The service names (`kafka`, `schemaregistry`, `connect`) are the internal Kubernetes DNS names assigned by CFK, they only resolve from within the cluster, which is why Kafka UI runs inside the same namespace.
+
+### **5.3 Verify the installation**
+```bash
+kubectl get pods -n confluent | grep kafka-ui
+```
+
+Wait until the pod shows `Running` before port-forwarding.
+
+### **5.4 Open the UI**
+```bash
+kubectl port-forward -n confluent svc/kafka-ui 8080:80
+```
+
+Then open `http://localhost:8080` in your browser. Note the asymmetry: the service listens on port `80` internally, forwarded to `8080` locally.
+
+## **6.0 Glossary**
 | Term | Description |
 | --- | --- |
 | **CFK** | Confluent for Kubernetes, a set of Kubernetes Operators for deploying and managing Confluent Platform on Kubernetes. |
@@ -189,7 +231,7 @@ kubectl delete namespace confluent
 | **Webhook** | A way to extend Kubernetes API by intercepting API requests and modifying them or validating them. |
 | **CR** | Custom Resource, an instance of a CRD that represents a specific configuration or state in the cluster. | 
 
-## **6.0 Kubernetes Nautical Theme**
+## **7.0 Kubernetes Nautical Theme**
 The nautical theme runs throughout the Kubernetes ecosystem:
 
 | Term | Description |

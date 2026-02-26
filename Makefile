@@ -241,8 +241,9 @@ kafka-ui-open: ## Port-forward Kafka UI and open it in your browser
 
 .PHONY: kafka-ui-uninstall
 kafka-ui-uninstall: ## Uninstall Kafka UI (safe to run even if not installed)
-	@helm uninstall kafka-ui -n $(NAMESPACE) 2>/dev/null || echo "→ kafka-ui not installed, skipping."
-	@echo "✔ Kafka UI removed."
+	@helm uninstall kafka-ui -n $(NAMESPACE) 2>/dev/null \
+		&& echo "✔ Kafka UI removed." \
+		|| echo "→ kafka-ui not installed, skipping."
 
 # ------------------------------------------------------------------------------
 # Composite workflows

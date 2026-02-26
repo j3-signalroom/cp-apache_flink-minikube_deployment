@@ -141,8 +141,7 @@ platform-delete: ## Remove all CP components deployed via the manifest (safe to 
 c3-open: ## Port-forward Control Center and open it in your browser
 	@echo "→ Forwarding Control Center to http://localhost:$(C3_PORT)"
 	@echo "   Press Ctrl+C to stop."
-	@(sleep 2 && open http://localhost:$(C3_PORT)) &
-	kubectl port-forward -n $(NAMESPACE) controlcenter-0 $(C3_PORT):$(C3_PORT)
+	@CURRENT_PGID=`ps -o "pgid=" -p $$PPID`; 	trap "kill -TERM -$$CURRENT_PGID 2>/dev/null" EXIT INT TERM; 	(sleep 2 && open http://localhost:$(C3_PORT)) & 	kubectl port-forward -n $(NAMESPACE) controlcenter-0 $(C3_PORT):$(C3_PORT)
 
 # ------------------------------------------------------------------------------
 # Phase 6: Apache Flink
@@ -197,7 +196,9 @@ flink-status: ## Show status of all Flink pods and FlinkDeployment CRs
 flink-ui: ## Port-forward the Flink UI and open it in your browser
 	@echo "→ Forwarding Flink UI to http://localhost:$(FLINK_UI_PORT)"
 	@echo "   Press Ctrl+C to stop."
-	@FLINK_POD=$$(kubectl get pods -n $(NAMESPACE) -l component=jobmanager --no-headers -o custom-columns=":metadata.name" | head -1); \
+	@CURRENT_PGID=`ps -o "pgid=" -p $$PPID`; \
+	trap "kill -TERM -$$CURRENT_PGID 2>/dev/null" EXIT INT TERM; \
+	FLINK_POD=$$(kubectl get pods -n $(NAMESPACE) -l component=jobmanager --no-headers -o custom-columns=":metadata.name" | head -1); \
 	if [ -z "$$FLINK_POD" ]; then \
 		echo "✘ No Flink JobManager pod found. Is the cluster deployed?"; exit 1; \
 	fi; \
@@ -239,8 +240,7 @@ kafka-ui-status: ## Check Kafka UI pod status
 kafka-ui-open: ## Port-forward Kafka UI and open it in your browser
 	@echo "→ Forwarding Kafka UI to http://localhost:$(KAFKA_UI_PORT)"
 	@echo "   Press Ctrl+C to stop."
-	@(sleep 2 && open http://localhost:$(KAFKA_UI_PORT)) &
-	kubectl port-forward -n $(NAMESPACE) svc/kafka-ui $(KAFKA_UI_PORT):80
+	@CURRENT_PGID=`ps -o "pgid=" -p $$PPID`; 	trap "kill -TERM -$$CURRENT_PGID 2>/dev/null" EXIT INT TERM; 	(sleep 2 && open http://localhost:$(KAFKA_UI_PORT)) & 	kubectl port-forward -n $(NAMESPACE) svc/kafka-ui $(KAFKA_UI_PORT):80
 
 .PHONY: kafka-ui-uninstall
 kafka-ui-uninstall: ## Uninstall Kafka UI (safe to run even if not installed)

@@ -343,9 +343,9 @@ make flink-deploy FLINK_IMAGE=flink:2.1 FLINK_VERSION=v2_1
 ├── LICENSE.md
 ├── LICENSE.pdf
 ├── .gitignore
-└── docs
-    ├── manual_deployment.md            # Step-by-step manual deployment instructions (without Makefile)
-    └── manual_deployment.pdf  
+├── docs
+│   ├── manual_deployment.md            # Step-by-step manual deployment instructions (without Makefile)
+│   └── manual_deployment.pdf  
 └── k8s/
     └── base/
         └── flink-basic-deployment.yaml # FlinkDeployment CR template

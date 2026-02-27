@@ -4,7 +4,7 @@ A Makefile-driven quickstart that deploys a full local streaming stack on Miniku
 
 - **Confluent Platform** (KRaft mode) via Confluent for Kubernetes (CFK)
 - **Apache Flink 2.2** via the Flink Kubernetes Operator
-- **Kafka UI** (Provectus) for cluster inspection
+- **Kafka UI** ([Provectus](https://provectus.com/)) for cluster inspection
 
 ---
 
@@ -24,7 +24,7 @@ A Makefile-driven quickstart that deploys a full local streaming stack on Miniku
     - [**6.4 Phase 4 — Confluent Platform**](#64-phase-4--confluent-platform)
     - [**6.5 Phase 5 — Control Center**](#65-phase-5--control-center)
     - [**6.6 Phase 6 — Apache Flink**](#66-phase-6-—apache-flink)
-    - [**6.7 Phase 7 — Kafka UI**](#67-phase-7--kafka-ui)
+    - [**6.7 Phase 7 — Kafka UI (Provectus)**](#67-phase-7--kafka-ui-provectus)
 + [**7.0 Configuration**](#70-configuration)
 + [**8.0 Repository Layout**](#80-repository-layout)
 + [**9.0 Teardown**](#90-teardown)
@@ -290,7 +290,7 @@ make flink-ui       # http://localhost:8081
 | `flink-delete` | Delete the Flink session cluster |
 | `cert-manager-uninstall` | Remove cert-manager |
 
-### **6.7 Phase 7 — Kafka UI**
+### **6.7 Phase 7 — Kafka UI (Provectus)**
 
 | Target | Description |
 |--------|-------------|

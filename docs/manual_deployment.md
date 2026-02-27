@@ -1,14 +1,18 @@
-# Minikube Quickstart for Confluent Platform Core Components
-This tutorial provides a step-by-step guide to deploying the core components of the **Confluent Platform** on a local Minikube Kubernetes cluster using **Confluent for Kubernetes (CFK)**.
+# Local Kafka Stack Quickstart: Confluent Platform, Kafka UI, and Apache Flink on Minikube
+This tutorial provides a step-by-step guide to deploying the core components of the **Confluent Platform** with **Provectus' Kafka UI** and **Apache Flink** on a local Minikube Kubernetes cluster using **Confluent for Kubernetes (CFK)**, the **Provectus Kafka UI Helm chart**, and the **Flink Kubernetes Operator**.
 
-By the end of this guide, you will have a fully functional Confluent Platform running in **KRaft mode (ZooKeeper-less Kafka)**, enabling you to explore and experiment with:
+By the end of this guide, you will have a fully functional **Confluent Platform** running in **KRaft mode (ZooKeeper-less Kafka)**, a browser-accessible **Kafka UI** for cluster visibility, and a **Flink session cluster** with its own UI, all running locally on Minikube. The guide also covers complete teardown procedures for each component.
 
-- **Kafka (KRaft mode)**
-- **Schema Registry**
-- **Kafka Connect**
-- **ksqlDB**
-- **REST Proxy**
-- **Control Center**
+The stack you will deploy includes:
+
+- **Kafka (KRaft mode)** — brokers and controllers, no ZooKeeper
+- **Schema Registry** — manages and enforces schemas for Kafka topics
+- **Kafka Connect** — integrates Kafka with external systems
+- **ksqlDB** — stream processing with SQL-like queries
+- **REST Proxy** — provides a RESTful interface to Kafka
+- **Control Center (C3)** — the Confluent monitoring UI
+- **Provectus Kafka UI** — lightweight alternative UI for cluster inspection
+- **Apache Flink** — session cluster via Flink Kubernetes Operator
 
 ---
 

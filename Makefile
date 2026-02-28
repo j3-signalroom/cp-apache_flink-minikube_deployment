@@ -5,25 +5,25 @@
 # + Kafka UI via Provectus Helm chart
 # ==============================================================================
 
-TUTORIAL_HOME        ?= https://raw.githubusercontent.com/confluentinc/confluent-kubernetes-examples/master/quickstart-deploy/kraft-quickstart
-NAMESPACE             ?= confluent
-MINIKUBE_CPUS         ?= 6
-MINIKUBE_MEM          ?= 20480
-MINIKUBE_DISK         ?= 50g
-C3_PORT               ?= 9021
-FLINK_OPERATOR_VER    ?= 1.14.0
-FLINK_IMAGE           ?= flink:2.2
-FLINK_VERSION         ?= v2_2
-FLINK_CLUSTER_NAME    ?= flink-basic
-FLINK_UI_PORT         ?= 8081
-KAFKA_UI_PORT         ?= 8080
-FLINK_MANIFEST        ?= k8s/base/flink-basic-deployment.yaml
-CERT_MANAGER_VER      ?= v1.17.1
+CONFLUENT_MANIFEST  ?= k8s/base/confluent-platform-c3++.yaml
+NAMESPACE           ?= confluent
+MINIKUBE_CPUS       ?= 6
+MINIKUBE_MEM        ?= 20480
+MINIKUBE_DISK       ?= 50g
+C3_PORT             ?= 9021
+FLINK_OPERATOR_VER  ?= 1.14.0
+FLINK_IMAGE         ?= flink:2.2
+FLINK_VERSION       ?= v2_2
+FLINK_CLUSTER_NAME  ?= flink-basic
+FLINK_UI_PORT       ?= 8081
+KAFKA_UI_PORT       ?= 8080
+FLINK_MANIFEST      ?= k8s/base/flink-basic-deployment.yaml
+CERT_MANAGER_VER    ?= v1.17.1
 
-SHELL                 := /bin/bash
-.SHELLFLAGS           := -eu -o pipefail -c
+SHELL               := /bin/bash
+.SHELLFLAGS         := -eu -o pipefail -c
 
-.DEFAULT_GOAL := help
+.DEFAULT_GOAL       := help
 
 # ------------------------------------------------------------------------------
 # Help
@@ -41,15 +41,12 @@ help: ## Show this help message
 # Phase 1: Prerequisites (macOS)
 # ------------------------------------------------------------------------------
 .PHONY: install-prereqs
-install-prereqs: ## Install Docker Desktop, kubectl, and Minikube via Homebrew
-	@echo "→ Installing Docker Desktop..."
-	brew install --cask docker
-	@echo "→ Installing kubectl..."
-	brew install kubectl
-	@echo "→ Installing Minikube..."
-	brew install minikube || brew link --overwrite minikube
+install-prereqs: ## Install docker, kubectl, minikube, and helm via Homebrew (macOS)
+	@echo "→ Installing prerequisites..."
+	@(test -d /Applications/Docker.app || test -f /usr/local/bin/kubectl.docker) || brew install --cask docker
+	brew install kubernetes-cli minikube helm gettext
 	@echo "✔ Prerequisites installed. Launch Docker Desktop before running 'make minikube-start'."
-
+	
 .PHONY: check-prereqs
 check-prereqs: ## Verify required tools are available
 	@echo "→ Checking prerequisites..."
@@ -109,30 +106,46 @@ operator-status: ## Verify the Confluent Operator pod is running
 	kubectl get pods -n $(NAMESPACE)
 
 .PHONY: operator-uninstall
-operator-uninstall: ## Uninstall the Confluent Operator Helm release (safe to run even if not installed)
-	@helm uninstall confluent-operator -n $(NAMESPACE) 2>/dev/null || echo "→ confluent-operator not installed, skipping."
+operator-uninstall: ## Uninstall the Confluent Operator Helm release and wait for pod termination
+	@helm uninstall confluent-operator -n $(NAMESPACE) --wait 2>/dev/null || echo "→ confluent-operator not installed, skipping."
+	@echo "✔ Confluent Operator removed."
 
 # ------------------------------------------------------------------------------
 # Phase 4: Deploy Confluent Platform (KRaft mode)
 # ------------------------------------------------------------------------------
-.PHONY: platform-deploy
-platform-deploy: ## Deploy all CP components (Kafka KRaft, Schema Registry, Connect, ksqlDB, REST Proxy, C3)
-	@echo "→ Applying Confluent Platform manifest from:"
-	@echo "    $(TUTORIAL_HOME)/confluent-platform-c3++.yaml"
-	kubectl apply -f $(TUTORIAL_HOME)/confluent-platform-c3++.yaml
-	@echo "✔ Manifest applied. Run 'make platform-watch' to follow pod startup."
+.PHONY: cp-deploy
+cp-deploy: ## Deploy all CP components: Kafka KRaft, Schema Registry, Connect, ksqlDB, REST Proxy, C3
+	@test -f $(CONFLUENT_MANIFEST) \
+		|| (echo "✘ Manifest not found at $(CONFLUENT_MANIFEST)" && exit 1)
+	@echo "→ Applying Confluent Platform manifest from $(CONFLUENT_MANIFEST)"
+	kubectl apply -f $(CONFLUENT_MANIFEST)
+	@echo "✔ Manifest applied. Run 'make cp-watch' to follow pod startup."
 
-.PHONY: platform-watch
-platform-watch: ## Watch pods come up in the confluent namespace (Ctrl+C to exit)
-	kubectl get pods -n $(NAMESPACE) -w
+.PHONY: cp-watch
+cp-watch: ## Watch pods come up in the confluent namespace (Ctrl+C to exit)
+	@if ! minikube status --format='{{.Host}}' 2>/dev/null | grep -q "Running"; then \
+		echo "✘ Minikube is not running — nothing to watch. Run 'make minikube-start' first."; \
+	elif ! kubectl get pods -n $(NAMESPACE) 2>/dev/null | grep -q .; then \
+		echo "✘ No pods found in namespace '$(NAMESPACE)' — nothing to watch. Run 'make cp-core-up' first."; \
+	else \
+		kubectl get pods -n $(NAMESPACE) -w; \
+	fi
 
-.PHONY: platform-status
-platform-status: ## Show current pod status for all CP components
+.PHONY: cp-status
+cp-status: ## Show current pod status for all CP components
 	kubectl get pods -n $(NAMESPACE)
 
-.PHONY: platform-delete
-platform-delete: ## Remove all CP components deployed via the manifest (safe to run even if not deployed)
-	@kubectl delete -f $(TUTORIAL_HOME)/confluent-platform-c3++.yaml 2>/dev/null || echo "→ CP components not found, skipping."
+.PHONY: cp-delete
+cp-delete: ## Remove all CP components, wait for termination, and clean up PVCs
+	@echo "→ Deleting CP components from $(CONFLUENT_MANIFEST)..."
+	@kubectl delete -f $(CONFLUENT_MANIFEST) --ignore-not-found=true 2>/dev/null || echo "→ CP components not found, skipping."
+	@echo "→ Waiting for all CP pods to terminate (timeout 3m)..."
+	@kubectl wait --for=delete pod \
+		-l 'app in (kafka,kraftcontroller,connect,schemaregistry,ksqldb,kafkarestproxy,controlcenter)' \
+		-n $(NAMESPACE) --timeout=180s 2>/dev/null || echo "→ Pods already gone or timeout reached."
+	@echo "→ Deleting leftover PVCs in namespace '$(NAMESPACE)'..."
+	@kubectl delete pvc --all -n $(NAMESPACE) --ignore-not-found=true 2>/dev/null || echo "→ No PVCs to clean up."
+	@echo "✔ CP components and PVCs removed."
 
 # ------------------------------------------------------------------------------
 # Phase 5: Control Center access
@@ -251,18 +264,18 @@ kafka-ui-uninstall: ## Uninstall Kafka UI (safe to run even if not installed)
 # ------------------------------------------------------------------------------
 # Composite workflows
 # ------------------------------------------------------------------------------
-.PHONY: up
-up: check-prereqs minikube-start cp-core-up kafka-ui-install ## Full stack: Minikube → cp-core-up → kafka-ui (run 'make flink-up' separately for Flink)
+.PHONY: cp-up
+cp-up: check-prereqs minikube-start cp-core-up kafka-ui-install ## Full stack: Minikube → cp-core-up → kafka-ui (run 'make flink-up' separately for Flink)
 	@echo ""
 	@echo "✔ Confluent Platform and Kafka UI are deploying."
-	@echo "  Run 'make platform-watch' to monitor pod startup."
+	@echo "  Run 'make cp-watch' to monitor pod startup."
 	@echo "  Run 'make flink-up' to also deploy Apache Flink."
 
 .PHONY: cp-core-up
-cp-core-up: operator-install platform-deploy ## Phases 3-5: install CFK Operator → deploy CP → access Control Center
+cp-core-up: operator-install cp-deploy ## Phases 3-5: install CFK Operator → deploy CP → access Control Center
 	@echo ""
 	@echo "✔ Confluent Platform is deploying."
-	@echo "  Run 'make platform-watch' to monitor pod startup."
+	@echo "  Run 'make cp-watch' to monitor pod startup."
 	@echo "  Once all pods are Running, run 'make c3-open' to access Control Center."
 
 .PHONY: flink-up
@@ -272,8 +285,8 @@ flink-up: flink-cert-manager flink-operator-install flink-deploy ## Install cert
 	@echo "  Run 'make flink-status' to check pod status."
 	@echo "  Once running, open the Flink UI with 'make flink-ui'."
 
-.PHONY: down
-down: kafka-ui-uninstall platform-delete operator-uninstall ## Tear down Kafka UI, CP and Operator (keeps Minikube running)
+.PHONY: cp-down
+cp-down: kafka-ui-uninstall cp-delete operator-uninstall ## Tear down Kafka UI, CP and Operator (keeps Minikube running)
 	@echo "✔ Confluent Platform, Kafka UI and Operator removed."
 
 .PHONY: flink-down
@@ -287,12 +300,16 @@ cert-manager-uninstall: ## Uninstall cert-manager (safe to run even if not insta
 		&& echo "✔ cert-manager removed." \
 		|| echo "→ cert-manager not installed, skipping."
 
-.PHONY: teardown
-teardown: ## Full teardown: remove Flink, Kafka UI, CP, Operator, namespace, and stop Minikube
+.PHONY: confluent-teardown
+confluent-teardown: ## Full teardown: remove Flink, Kafka UI, CP, Operator, namespace, and stop Minikube
 	@minikube status --format='{{.Host}}' 2>/dev/null | grep -q "Running" \
 		|| (echo "✘ Minikube is not running — nothing to tear down." && exit 1)
 	$(MAKE) flink-down
-	$(MAKE) down
-	@kubectl delete namespace $(NAMESPACE) --ignore-not-found=true 2>/dev/null || echo "→ Namespace $(NAMESPACE) not found, skipping."
+	$(MAKE) cp-down
+	@echo "→ Deleting namespace '$(NAMESPACE)' and all remaining resources..."
+	@kubectl delete namespace $(NAMESPACE) --ignore-not-found=true --wait=true 2>/dev/null \
+		|| echo "→ Namespace $(NAMESPACE) not found, skipping."
+	@echo "→ Verifying no pods remain in namespace '$(NAMESPACE)'..."
+	@kubectl get pods -n $(NAMESPACE) 2>/dev/null || echo "→ Namespace gone — all clean."
 	$(MAKE) minikube-stop
 	@echo "✔ Full teardown complete."

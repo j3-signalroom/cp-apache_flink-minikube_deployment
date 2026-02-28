@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is base on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.04.00.000] - 2026-02-28
+### Added
+- Issue [`#61`](https://github.com/j3-signalroom/minikube-cp_deployment/issues/61)
+
 ## [0.03.01.000] - 2026-02-27
 ### Changed
 - Issue [`#59`](https://github.com/j3-signalroom/minikube-cp_deployment/issues/59)

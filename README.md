@@ -102,8 +102,8 @@ graph TD
 
     %% ── Phase 4: Confluent Platform ─────────────────────────────────────
     subgraph P4["Phase 4 — Confluent Platform"]
-        CP_DEPLOY["platform-deploy\nKafka KRaft · SR · Connect\nksqlDB · REST Proxy · C3"]
-        CP_DELETE["platform-delete"]
+        CP_DEPLOY["cp-deploy\nKafka KRaft · SR · Connect\nksqlDB · REST Proxy · C3"]
+        CP_DELETE["cp-delete"]
     end
 
     %% ── Phase 5: Control Center ─────────────────────────────────────────
@@ -198,7 +198,7 @@ graph TD
 make up
 ```
 
-This runs: `check-prereqs` → `minikube-start` → `namespace` → `operator-install` → `platform-deploy` → `kafka-ui-install`.
+This runs: `check-prereqs` → `minikube-start` → `namespace` → `operator-install` → `cp-deploy` → `kafka-ui-install`.
 
 Once pods are up, open Control Center:
 
@@ -265,10 +265,10 @@ make flink-ui       # http://localhost:8081
 
 | Target | Description |
 |--------|-------------|
-| `platform-deploy` | Deploy Kafka (KRaft), Schema Registry, Connect, ksqlDB, REST Proxy, Control Center |
-| `platform-watch` | Watch pod startup live (Ctrl+C to exit) |
-| `platform-status` | Show current pod status |
-| `platform-delete` | Remove all CP components |
+| `cp-deploy` | Deploy Kafka (KRaft), Schema Registry, Connect, ksqlDB, REST Proxy, Control Center |
+| `cp-watch` | Watch pod startup live (Ctrl+C to exit) |
+| `cp-status` | Show current pod status |
+| `cp-delete` | Remove all CP components |
 
 ### **6.5 Phase 5 — Control Center**
 

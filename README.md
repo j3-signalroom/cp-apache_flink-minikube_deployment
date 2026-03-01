@@ -387,7 +387,7 @@ make flink-deploy FLINK_IMAGE=confluentinc/cp-flink:2.1.1-cp1-java21 FLINK_VERSI
 ├── LICENSE.pdf
 ├── .gitignore
 ├── docs
-│   ├── manual_deployment.md            # Step-by-step manual deployment instructions (without Makefile)
+│   ├── manual_deployment.md                # Step-by-step manual deployment instructions (without Makefile)
 │   └── manual_deployment.pdf  
 └── k8s/
     └── base/
@@ -395,7 +395,7 @@ make flink-deploy FLINK_IMAGE=confluentinc/cp-flink:2.1.1-cp1-java21 FLINK_VERSI
         └── flink-basic-deployment.yaml     # FlinkDeployment CR template
 ```
 
-> The `flink-basic-deployment.yaml` is a template — `FLINK_IMAGE` and `FLINK_VERSION` are substituted at deploy time via `envsubst`. Do not apply it directly with `kubectl apply`.
+> The `flink-basic-deployment.yaml` is a template, `FLINK_IMAGE` and `FLINK_VERSION` are substituted at deploy time via `envsubst`. Do not apply it directly with `kubectl apply`.
 
 ---
 

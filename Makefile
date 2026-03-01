@@ -11,19 +11,22 @@ NAMESPACE           ?= confluent
 MINIKUBE_CPUS       ?= 6
 MINIKUBE_MEM        ?= 20480
 MINIKUBE_DISK       ?= 50g
-C3_PORT             ?= 9021
-FLINK_OPERATOR_VER  ?= 1.130.0
+
 # CMF manages Flink via confluentinc/cp-flink images — not the open-source flink image
 FLINK_IMAGE         ?= confluentinc/cp-flink:2.1.1-cp1-java21-arm64
+FLINK_OPERATOR_VER  ?= 1.130.0
 FLINK_VERSION       ?= v2_1
 FLINK_CLUSTER_NAME  ?= flink-basic
-FLINK_UI_PORT       ?= 8081
-KAFKA_UI_PORT       ?= 8080
 FLINK_MANIFEST      ?= k8s/base/flink-basic-deployment.yaml
 CERT_MANAGER_VER    ?= v1.18.2
 CMF_VER             ?= 2.1.0
-CMF_PORT            ?= 8080
 CMF_ENV_NAME        ?= dev-local
+
+# Ports for port-forwarding to local machine (Control Center, CMF, Flink UI, Kafka UI)
+KAFKA_UI_PORT       ?= 8080
+C3_PORT             ?= 9021
+FLINK_UI_PORT       ?= 8081
+CMF_PORT            ?= 8080
 
 SHELL               := /bin/bash
 .SHELLFLAGS         := -eu -o pipefail -c

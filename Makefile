@@ -1,7 +1,8 @@
 # ==============================================================================
 # Confluent Platform on Minikube - Quickstart Makefile
 # Deploys CP Core Components using Confluent for Kubernetes (CFK) in KRaft mode
-# + Apache Flink 2.2 via Flink Kubernetes Operator 1.14
+# + Apache Flink 2.1.1 via Confluent Flink Kubernetes Operator 1.130
+# + Confluent Manager for Apache Flink (CMF) 2.1
 # + Kafka UI via Provectus Helm chart
 # ==============================================================================
 
@@ -11,14 +12,18 @@ MINIKUBE_CPUS       ?= 6
 MINIKUBE_MEM        ?= 20480
 MINIKUBE_DISK       ?= 50g
 C3_PORT             ?= 9021
-FLINK_OPERATOR_VER  ?= 1.14.0
-FLINK_IMAGE         ?= flink:2.2
-FLINK_VERSION       ?= v2_2
+FLINK_OPERATOR_VER  ?= 1.130.0
+# CMF manages Flink via confluentinc/cp-flink images — not the open-source flink image
+FLINK_IMAGE         ?= confluentinc/cp-flink:2.1.1-cp1-java21
+FLINK_VERSION       ?= v2_1
 FLINK_CLUSTER_NAME  ?= flink-basic
 FLINK_UI_PORT       ?= 8081
 KAFKA_UI_PORT       ?= 8080
 FLINK_MANIFEST      ?= k8s/base/flink-basic-deployment.yaml
-CERT_MANAGER_VER    ?= v1.17.1
+CERT_MANAGER_VER    ?= v1.18.2
+CMF_VER             ?= 2.1.0
+CMF_PORT            ?= 8080
+CMF_ENV_NAME        ?= dev-local
 
 SHELL               := /bin/bash
 .SHELLFLAGS         := -eu -o pipefail -c
@@ -133,7 +138,13 @@ cp-watch: ## Watch pods come up in the confluent namespace (Ctrl+C to exit)
 
 .PHONY: cp-status
 cp-status: ## Show current pod status for all CP components
-	kubectl get pods -n $(NAMESPACE)
+	@if ! minikube status --format='{{.Host}}' 2>/dev/null | grep -q "Running"; then \
+		echo "✘ Minikube is not running — nothing to get status on. Run 'make minikube-start' first."; \
+	elif ! kubectl get pods -n $(NAMESPACE) 2>/dev/null | grep -q .; then \
+		echo "✘ No pods found in namespace '$(NAMESPACE)' — nothing to get status on. Run 'make cp-core-up' first."; \
+	else \
+		kubectl get pods -n $(NAMESPACE); \
+	fi
 
 .PHONY: cp-delete
 cp-delete: ## Remove all CP components, wait for termination, and clean up PVCs
@@ -163,30 +174,33 @@ c3-open: ## Port-forward Control Center and open it in your browser
 flink-cert-manager: ## Install cert-manager (required by Flink Kubernetes Operator)
 	@echo "→ Installing cert-manager $(CERT_MANAGER_VER)..."
 	kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/$(CERT_MANAGER_VER)/cert-manager.yaml
-	@echo "→ Waiting for cert-manager pods to be ready..."
-	kubectl wait --for=condition=ready pod -l app=cert-manager -n cert-manager --timeout=120s
-	kubectl wait --for=condition=ready pod -l app=cainjector -n cert-manager --timeout=120s
-	kubectl wait --for=condition=ready pod -l app=webhook -n cert-manager --timeout=120s
+	@echo "→ Waiting for cert-manager pods to be ready (this takes ~60s)..."
+	kubectl wait --for=condition=ready pod -l app=cert-manager -n cert-manager --timeout=180s
+	kubectl wait --for=condition=ready pod -l app=cainjector -n cert-manager --timeout=180s
+	kubectl wait --for=condition=ready pod -l app=webhook -n cert-manager --timeout=180s
 	@echo "✔ cert-manager is ready."
 
 .PHONY: flink-operator-install
-flink-operator-install: namespace ## Install the Flink Kubernetes Operator $(FLINK_OPERATOR_VER)
-	@echo "→ Adding Flink Operator Helm repo (v$(FLINK_OPERATOR_VER))..."
-	helm repo add flink-operator-repo https://downloads.apache.org/flink/flink-kubernetes-operator-$(FLINK_OPERATOR_VER)/
+flink-operator-install: namespace ## Install the Confluent Flink Kubernetes Operator $(FLINK_OPERATOR_VER) (required by CMF)
+	@echo "→ Installing Confluent Flink Kubernetes Operator v$(FLINK_OPERATOR_VER)..."
+	@helm repo add confluentinc https://packages.confluent.io/helm 2>/dev/null || true
 	helm repo update
-	@echo "→ Installing Flink Kubernetes Operator..."
-	helm upgrade --install flink-kubernetes-operator flink-operator-repo/flink-kubernetes-operator \
+	# CMF requires the Confluent-packaged operator (confluentinc/flink-kubernetes-operator),
+	# NOT the Apache OSS operator. watchNamespaces scopes it to the confluent namespace.
+	helm upgrade --install cp-flink-kubernetes-operator confluentinc/flink-kubernetes-operator \
+		--version "~$(FLINK_OPERATOR_VER)" \
 		--namespace $(NAMESPACE) \
+		--set watchNamespaces="{$(NAMESPACE)}" \
 		--set webhook.create=false
-	@echo "✔ Flink Kubernetes Operator $(FLINK_OPERATOR_VER) installed."
+	@echo "✔ Confluent Flink Kubernetes Operator $(FLINK_OPERATOR_VER) installed."
 
 .PHONY: flink-operator-status
 flink-operator-status: ## Check Flink operator pod status
-	kubectl get pods -n $(NAMESPACE) | grep flink
+	kubectl get pods -n $(NAMESPACE) | grep -E "flink|confluent-manager"
 
 .PHONY: flink-operator-uninstall
-flink-operator-uninstall: ## Uninstall the Flink Kubernetes Operator (safe to run even if not installed)
-	@helm uninstall flink-kubernetes-operator -n $(NAMESPACE) 2>/dev/null || echo "→ flink-kubernetes-operator not installed, skipping."
+flink-operator-uninstall: ## Uninstall the Confluent Flink Kubernetes Operator (safe to run even if not installed)
+	@helm uninstall cp-flink-kubernetes-operator -n $(NAMESPACE) --wait 2>/dev/null || echo "→ cp-flink-kubernetes-operator not installed, skipping."
 
 .PHONY: flink-deploy
 flink-deploy: ## Deploy a Flink session cluster using $(FLINK_MANIFEST) (image=$(FLINK_IMAGE), version=$(FLINK_VERSION))
@@ -221,12 +235,117 @@ flink-ui: ## Port-forward the Flink UI and open it in your browser
 
 .PHONY: flink-delete
 flink-delete: ## Delete the Flink session cluster (safe to run even if cluster is down or not deployed)
+	@# Also remove any stale plain Deployment left from a previous OSS Flink setup
+	@kubectl delete deployment $(FLINK_CLUSTER_NAME) -n $(NAMESPACE) --ignore-not-found=true 2>/dev/null || true
 	@kubectl delete flinkdeployment $(FLINK_CLUSTER_NAME) -n $(NAMESPACE) --ignore-not-found=true 2>/dev/null \
 		&& echo "✔ Flink cluster '$(FLINK_CLUSTER_NAME)' deleted." \
 		|| echo "→ Flink cluster not found or API server unreachable, skipping."
 
 # ------------------------------------------------------------------------------
-# Phase 7: Kafka UI (Provectus)
+# Phase 7: Confluent Manager for Apache Flink (CMF)
+# ------------------------------------------------------------------------------
+.PHONY: cmf-install
+cmf-install: ## Install CMF v$(CMF_VER) — requires Confluent Flink Operator to be running
+	@echo "→ Installing Confluent Manager for Apache Flink (CMF) v$(CMF_VER)..."
+	@helm repo add confluentinc https://packages.confluent.io/helm 2>/dev/null || true
+	helm repo update
+	helm upgrade --install cmf confluentinc/confluent-manager-for-apache-flink \
+		--version "~$(CMF_VER)" \
+		--namespace $(NAMESPACE) \
+		--set cmf.sql.production=false
+	@echo "→ Waiting for CMF pod to be ready (timeout 3m)..."
+	@kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=confluent-manager-for-apache-flink -n $(NAMESPACE) --timeout=180s
+	@echo "✔ CMF v$(CMF_VER) installed."
+
+.PHONY: cmf-env-create
+cmf-env-create: ## Create a '$(CMF_ENV_NAME)' Flink environment in CMF pointing to the confluent namespace
+	@echo "→ Creating Flink environment '$(CMF_ENV_NAME)' in CMF..."
+	@kubectl port-forward -n $(NAMESPACE) svc/cmf-service 18080:80 >/dev/null 2>&1 & \
+	PF_PID=$$!; \
+	sleep 2; \
+	HTTP_CODE=$$(curl -s -o /tmp/cmf-env-out.json -w "%{http_code}" -X POST \
+		http://localhost:18080/cmf/api/v1/environments \
+		-H "Content-Type: application/json" \
+		-d "{\"name\":\"$(CMF_ENV_NAME)\",\"kubernetesNamespace\":\"$(NAMESPACE)\"}"); \
+	kill $$PF_PID 2>/dev/null; \
+	if [ "$$HTTP_CODE" = "200" ]; then \
+		echo "✔ Flink environment '$(CMF_ENV_NAME)' created."; \
+	elif [ "$$HTTP_CODE" = "409" ]; then \
+		echo "→ Environment '$(CMF_ENV_NAME)' already exists, skipping."; \
+	else \
+		echo "✘ Failed (HTTP $$HTTP_CODE):"; cat /tmp/cmf-env-out.json; exit 1; \
+	fi
+
+.PHONY: cmf-status
+cmf-status: ## Show CMF pod status and list registered Flink environments
+	@echo "--- CMF Pod ---"
+	@kubectl get pods -n $(NAMESPACE) -l app.kubernetes.io/name=confluent-manager-for-apache-flink
+	@echo ""
+	@echo "--- Flink Environments ---"
+	@kubectl port-forward -n $(NAMESPACE) svc/cmf-service 18080:80 >/dev/null 2>&1 & \
+	PF_PID=$$!; \
+	sleep 2; \
+	curl -sf http://localhost:18080/cmf/api/v1/environments \
+		| python3 -m json.tool 2>/dev/null || echo "(no environments yet)"; \
+	kill $$PF_PID 2>/dev/null; true
+
+.PHONY: cmf-open
+cmf-open: ## Port-forward CMF REST API to localhost:$(CMF_PORT)
+	@echo "→ Forwarding CMF REST API to http://localhost:$(CMF_PORT)"
+	@echo "   Press Ctrl+C to stop."
+	@CURRENT_PGID=`ps -o "pgid=" -p $$PPID`; \
+	trap "kill -TERM -$$CURRENT_PGID 2>/dev/null" EXIT INT TERM; \
+	(sleep 2 && open http://localhost:$(CMF_PORT)/cmf/api/v1/environments) & \
+	kubectl port-forward -n $(NAMESPACE) svc/cmf-service $(CMF_PORT):80
+
+.PHONY: cmf-uninstall
+cmf-uninstall: ## Uninstall CMF (safe to run even if not installed)
+	@helm uninstall cmf -n $(NAMESPACE) --wait 2>/dev/null \
+		&& echo "✔ CMF removed." \
+		|| echo "→ cmf not installed, skipping."
+
+.PHONY: cmf-proxy-logs
+cmf-proxy-logs: ## Show logs from the cmf-proxy sidecar in the C3 pod (debug Flink tab connectivity)
+	kubectl logs -n $(NAMESPACE) controlcenter-0 -c cmf-proxy --tail=50 -f
+
+.PHONY: cmf-proxy-inject
+cmf-proxy-inject: ## Patch C3 StatefulSet with socat sidecar (localhost:8080 → cmf-service:80) and pause CFK reconciliation
+	@echo "→ Pausing CFK reconciliation for controlcenter..."
+	kubectl annotate controlcenter controlcenter \
+		platform.confluent.io/pause-reconciliation=true \
+		-n $(NAMESPACE) --overwrite
+	@echo "→ Patching StatefulSet to add cmf-proxy sidecar..."
+	@printf '%s' '[{"op":"add","path":"/spec/template/spec/containers/-","value":{"name":"cmf-proxy","image":"alpine/socat:latest","args":["TCP-LISTEN:8080,fork,reuseaddr","TCP:cmf-service.confluent.svc.cluster.local:80"]}}]' \
+		> /tmp/cmf-proxy-patch.json
+	kubectl patch statefulset controlcenter -n $(NAMESPACE) --type=json --patch-file=/tmp/cmf-proxy-patch.json
+	@echo "→ Restarting controlcenter pod to pick up the new sidecar..."
+	kubectl rollout restart statefulset/controlcenter -n $(NAMESPACE)
+	@echo "→ Waiting for rollout to complete (timeout 3m)..."
+	kubectl rollout status statefulset/controlcenter -n $(NAMESPACE) --timeout=180s
+	@echo "✔ cmf-proxy sidecar injected. C3 localhost:8080 now proxies to cmf-service:80."
+	@echo "   Verify with: make cmf-proxy-logs"
+
+.PHONY: cmf-proxy-remove
+cmf-proxy-remove: ## Remove the cmf-proxy sidecar and resume CFK reconciliation (will trigger C3 pod restart)
+	@echo "→ Resuming CFK reconciliation for controlcenter..."
+	kubectl annotate controlcenter controlcenter \
+		platform.confluent.io/pause-reconciliation- \
+		-n $(NAMESPACE) --overwrite 2>/dev/null || true
+	@echo "→ Removing cmf-proxy container from StatefulSet..."
+	@CONTAINERS=$$(kubectl get statefulset controlcenter -n $(NAMESPACE) \
+		-o jsonpath='{.spec.template.spec.containers[*].name}'); \
+	IDX=$$(echo "$$CONTAINERS" | tr ' ' '\n' | grep -n "cmf-proxy" | cut -d: -f1); \
+	if [ -z "$$IDX" ]; then \
+		echo "→ cmf-proxy not found in StatefulSet, skipping patch."; \
+	else \
+		IDX=$$((IDX - 1)); \
+		kubectl patch statefulset controlcenter -n $(NAMESPACE) --type=json \
+			-p="[{\"op\":\"remove\",\"path\":\"/spec/template/spec/containers/$$IDX\"}]"; \
+		echo "✔ cmf-proxy removed. CFK will reconcile and restart controlcenter-0."; \
+	fi
+
+# ------------------------------------------------------------------------------
+# Phase 8: Kafka UI (Provectus)
 # ------------------------------------------------------------------------------
 .PHONY: kafka-ui-install
 kafka-ui-install: ## Install Kafka UI and connect it to the Confluent Kafka cluster
@@ -269,7 +388,7 @@ cp-up: check-prereqs minikube-start cp-core-up kafka-ui-install ## Full stack: M
 	@echo ""
 	@echo "✔ Confluent Platform and Kafka UI are deploying."
 	@echo "  Run 'make cp-watch' to monitor pod startup."
-	@echo "  Run 'make flink-up' to also deploy Apache Flink."
+	@echo "  Run 'make flink-up' to also deploy Apache Flink + CMF."
 
 .PHONY: cp-core-up
 cp-core-up: operator-install cp-deploy ## Phases 3-5: install CFK Operator → deploy CP → access Control Center
@@ -279,10 +398,11 @@ cp-core-up: operator-install cp-deploy ## Phases 3-5: install CFK Operator → d
 	@echo "  Once all pods are Running, run 'make c3-open' to access Control Center."
 
 .PHONY: flink-up
-flink-up: flink-cert-manager flink-operator-install flink-deploy ## Install cert-manager → Flink Operator → deploy Flink cluster
+flink-up: flink-cert-manager flink-operator-install cmf-install cmf-env-create flink-deploy ## Install cert-manager → Confluent Flink Operator → CMF → Flink cluster
 	@echo ""
-	@echo "✔ Flink is deploying."
-	@echo "  Run 'make flink-status' to check pod status."
+	@echo "✔ Flink + CMF are deploying."
+	@echo "  Run 'make flink-status' to check Flink pod status."
+	@echo "  Run 'make cmf-status' to verify CMF and Flink environments."
 	@echo "  Once running, open the Flink UI with 'make flink-ui'."
 
 .PHONY: cp-down
@@ -290,8 +410,8 @@ cp-down: kafka-ui-uninstall cp-delete operator-uninstall ## Tear down Kafka UI, 
 	@echo "✔ Confluent Platform, Kafka UI and Operator removed."
 
 .PHONY: flink-down
-flink-down: flink-delete flink-operator-uninstall cert-manager-uninstall ## Tear down Flink cluster, operator, and cert-manager
-	@echo "✔ Flink cluster, operator, and cert-manager removed."
+flink-down: flink-delete cmf-uninstall flink-operator-uninstall cert-manager-uninstall ## Tear down Flink cluster, CMF, operator, and cert-manager
+	@echo "✔ Flink cluster, CMF, operator, and cert-manager removed."
 
 .PHONY: cert-manager-uninstall
 cert-manager-uninstall: ## Uninstall cert-manager (safe to run even if not installed)

@@ -367,7 +367,7 @@ All variables are overridable at the command line. Defaults:
 Example — deploy a specific Flink image:
 
 ```bash
-make flink-deploy FLINK_IMAGE=confluentinc/cp-flink:2.1.1-cp1-java21 FLINK_VERSION=v2_1
+make flink-deploy FLINK_IMAGE=confluentinc/cp-flink:2.1.1-cp1-java21-arm64 FLINK_VERSION=v2_1
 ```
 
 ---

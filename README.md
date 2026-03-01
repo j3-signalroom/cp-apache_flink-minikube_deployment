@@ -3,7 +3,8 @@
 A Makefile-driven quickstart that deploys a full local streaming stack on Minikube:
 
 - **Confluent Platform** (KRaft mode) via Confluent for Kubernetes (CFK)
-- **Apache Flink 2.2** via the Flink Kubernetes Operator
+- **Apache Flink 2.1.1** via the Confluent Flink Kubernetes Operator 1.130
+- **Confluent Manager for Apache Flink (CMF) 2.1** for Flink environment management
 - **Kafka UI** ([Provectus](https://provectus.com/)) for cluster inspection
 
 ---
@@ -14,17 +15,18 @@ A Makefile-driven quickstart that deploys a full local streaming stack on Miniku
 + [**2.0 Resource Requirements**](#20-resource-requirements)
 + [**3.0 Architecture**](#30-architecture)
 + [**4.0 Quickstart**](#40-quickstart)
-    - [**3.1 Full stack (CP + Kafka UI)**](#31-full-stack-cp--kafka-ui)
-    - [**3.2 Add Apache Flink (run separately after `make up`)**](#32-add-apache-flink-run-separately-after-make-up)
+    - [**4.1 Full stack (CP + Kafka UI)**](#41-full-stack-cp--kafka-ui)
+    - [**4.2 Add Apache Flink + CMF (run separately after `make cp-up`)**](#42-add-apache-flink--cmf-run-separately-after-make-cp-up)
 + [**5.0 Composite Workflow Reference**](#50-composite-workflow-reference)
 + [**6.0 Individual Target Reference**](#60-individual-target-reference)
     - [**6.1 Phase 1 — Prerequisites**](#61-phase-1--prerequisites)
-    - [**6.2 Phase 2 — Minikube**](#62-phase-2—-minikube)
+    - [**6.2 Phase 2 — Minikube**](#62-phase-2--minikube)
     - [**6.3 Phase 3 — Confluent Operator**](#63-phase-3--confluent-operator)
     - [**6.4 Phase 4 — Confluent Platform**](#64-phase-4--confluent-platform)
     - [**6.5 Phase 5 — Control Center**](#65-phase-5--control-center)
-    - [**6.6 Phase 6 — Apache Flink**](#66-phase-6-—apache-flink)
-    - [**6.7 Phase 7 — Kafka UI (Provectus)**](#67-phase-7--kafka-ui-provectus)
+    - [**6.6 Phase 6 — Apache Flink**](#66-phase-6--apache-flink)
+    - [**6.7 Phase 7 — Confluent Manager for Apache Flink (CMF)**](#67-phase-7--confluent-manager-for-apache-flink-cmf)
+    - [**6.8 Phase 8 — Kafka UI (Provectus)**](#68-phase-8--kafka-ui-provectus)
 + [**7.0 Configuration**](#70-configuration)
 + [**8.0 Repository Layout**](#80-repository-layout)
 + [**9.0 Teardown**](#90-teardown)
@@ -66,7 +68,7 @@ Minikube is configured with the following defaults, which are required to run th
 Override any of these at the command line:
 
 ```bash
-make up MINIKUBE_CPUS=8 MINIKUBE_MEM=24576
+make cp-up MINIKUBE_CPUS=8 MINIKUBE_MEM=24576
 ```
 
 ---
@@ -76,11 +78,11 @@ make up MINIKUBE_CPUS=8 MINIKUBE_MEM=24576
 ```mermaid
 graph TD
     %% ── Composite entry points ──────────────────────────────────────────
-    UP(["`**make up**`"])
+    CP_UP(["`**make cp-up**`"])
     FLINK_UP(["`**make flink-up**`"])
-    DOWN(["`**make down**`"])
+    CP_DOWN(["`**make cp-down**`"])
     FLINK_DOWN(["`**make flink-down**`"])
-    TEARDOWN(["`**make teardown**`"])
+    TEARDOWN(["`**make confluent-teardown**`"])
 
     %% ── Phase 1: Prerequisites ──────────────────────────────────────────
     subgraph P1["Phase 1 — Prerequisites"]
@@ -113,17 +115,26 @@ graph TD
 
     %% ── Phase 6: Apache Flink ───────────────────────────────────────────
     subgraph P6["Phase 6 — Apache Flink"]
-        CERT["flink-cert-manager\ncert-manager v1.17.1"]
-        FL_OP["flink-operator-install\nhelm: flink-kubernetes-operator 1.14.0"]
-        FL_DEPLOY["flink-deploy\nenvsubst → FlinkDeployment CR\nflink:2.2"]
+        CERT["flink-cert-manager\ncert-manager v1.18.2"]
+        FL_OP["flink-operator-install\nhelm: confluentinc/flink-kubernetes-operator 1.130.0"]
+        FL_DEPLOY["flink-deploy\nenvsubst → FlinkDeployment CR\ncp-flink:2.1.1-cp1"]
         FL_UI["flink-ui\nlocalhost:8081"]
         FL_DELETE["flink-delete"]
         FL_OP_UN["flink-operator-uninstall"]
         CERT_UN["cert-manager-uninstall"]
     end
 
-    %% ── Phase 7: Kafka UI ───────────────────────────────────────────────
-    subgraph P7["Phase 7 — Kafka UI"]
+    %% ── Phase 7: CMF ────────────────────────────────────────────────────
+    subgraph P7["Phase 7 — Confluent Manager for Apache Flink (CMF)"]
+        CMF_INSTALL["cmf-install\nhelm: confluent-manager-for-apache-flink 2.1.0"]
+        CMF_ENV["cmf-env-create\nPOST /cmf/api/v1/environments"]
+        CMF_OPEN["cmf-open\nlocalhost:8080/cmf/api/v1/environments"]
+        CMF_PROXY["cmf-proxy-inject\nsocat sidecar → C3 Flink tab"]
+        CMF_UN["cmf-uninstall"]
+    end
+
+    %% ── Phase 8: Kafka UI ───────────────────────────────────────────────
+    subgraph P8["Phase 8 — Kafka UI"]
         KUI_INSTALL["kafka-ui-install\nhelm: provectus/kafka-ui\nbootstrap: kafka:9092"]
         KUI_OPEN["kafka-ui-open\nlocalhost:8080"]
         KUI_UN["kafka-ui-uninstall"]
@@ -134,11 +145,11 @@ graph TD
         MANIFEST[("flink-basic-deployment.yaml\nFLINK_IMAGE · FLINK_VERSION")]
     end
 
-    %% ── make up dependency chain ────────────────────────────────────────
-    UP --> CHECK_PRE
-    UP --> MK_START
-    UP --> CP_CORE_UP
-    UP --> KUI_INSTALL
+    %% ── make cp-up dependency chain ─────────────────────────────────────
+    CP_UP --> CHECK_PRE
+    CP_UP --> MK_START
+    CP_UP --> CP_CORE_UP
+    CP_UP --> KUI_INSTALL
 
     CP_CORE_UP["cp-core-up"] --> OP_INSTALL
     CP_CORE_UP --> CP_DEPLOY
@@ -147,29 +158,34 @@ graph TD
     %% ── make flink-up dependency chain ──────────────────────────────────
     FLINK_UP --> CERT
     FLINK_UP --> FL_OP
+    FLINK_UP --> CMF_INSTALL
+    FLINK_UP --> CMF_ENV
     FLINK_UP --> FL_DEPLOY
     FL_OP --> NS
     FL_DEPLOY --> MANIFEST
 
-    %% ── make down dependency chain ───────────────────────────────────────
-    DOWN --> KUI_UN
-    DOWN --> CP_DELETE
-    DOWN --> OP_UNINSTALL
+    %% ── make cp-down dependency chain ────────────────────────────────────
+    CP_DOWN --> KUI_UN
+    CP_DOWN --> CP_DELETE
+    CP_DOWN --> OP_UNINSTALL
 
     %% ── make flink-down dependency chain ─────────────────────────────────
     FLINK_DOWN --> FL_DELETE
+    FLINK_DOWN --> CMF_UN
     FLINK_DOWN --> FL_OP_UN
     FLINK_DOWN --> CERT_UN
 
-    %% ── make teardown ────────────────────────────────────────────────────
+    %% ── make confluent-teardown ───────────────────────────────────────────
     TEARDOWN -->|"1 — check minikube running"| FLINK_DOWN
-    TEARDOWN -->|"2"| DOWN
+    TEARDOWN -->|"2"| CP_DOWN
     TEARDOWN -->|"3 — delete namespace"| NS
     TEARDOWN -->|"4"| MK_STOP
 
     %% ── UI access ────────────────────────────────────────────────────────
     CP_DEPLOY -.->|"once Running"| C3
     FL_DEPLOY -.->|"once Running"| FL_UI
+    CMF_INSTALL -.->|"once Running"| CMF_OPEN
+    CMF_INSTALL -.->|"C3 Flink tab"| CMF_PROXY
     KUI_INSTALL -.->|"once Running"| KUI_OPEN
 
     %% ── Styles ───────────────────────────────────────────────────────────
@@ -180,11 +196,11 @@ graph TD
     classDef file     fill:#2d2b1b,stroke:#8b7500,color:#ffe680
     classDef composite fill:#2a1a2e,stroke:#9b59b6,color:#dbb8ff
 
-    class UP,FLINK_UP,DOWN,FLINK_DOWN,TEARDOWN entry
+    class CP_UP,FLINK_UP,CP_DOWN,FLINK_DOWN,TEARDOWN entry
     class CP_CORE_UP composite
-    class CHECK_PRE,MK_START,NS,OP_INSTALL,CP_DEPLOY,CERT,FL_OP,FL_DEPLOY,KUI_INSTALL install
-    class MK_STOP,OP_UNINSTALL,CP_DELETE,FL_DELETE,FL_OP_UN,CERT_UN,KUI_UN remove
-    class C3,FL_UI,KUI_OPEN ui
+    class CHECK_PRE,MK_START,NS,OP_INSTALL,CP_DEPLOY,CERT,FL_OP,FL_DEPLOY,CMF_INSTALL,CMF_ENV,CMF_PROXY,KUI_INSTALL install
+    class MK_STOP,OP_UNINSTALL,CP_DELETE,FL_DELETE,FL_OP_UN,CERT_UN,CMF_UN,KUI_UN remove
+    class C3,FL_UI,CMF_OPEN,KUI_OPEN ui
     class MANIFEST file
 ```
 
@@ -192,10 +208,10 @@ graph TD
 
 ## **4.0 Quickstart**
 
-#### **4.1 Full stack (CP + Kafka UI)**
+### **4.1 Full stack (CP + Kafka UI)**
 
 ```bash
-make up
+make cp-up
 ```
 
 This runs: `check-prereqs` → `minikube-start` → `namespace` → `operator-install` → `cp-deploy` → `kafka-ui-install`.
@@ -206,18 +222,25 @@ Once pods are up, open Control Center:
 make c3-open        # http://localhost:9021
 ```
 
-### **4.2 Add Apache Flink (run separately after `make up`)**
+### **4.2 Add Apache Flink + CMF (run separately after `make cp-up`)**
 
 ```bash
 make flink-up
 ```
 
-This runs: `namespace` → `flink-cert-manager` → `flink-operator-install` → `flink-deploy`. `flink-up` is self-contained and can also be run standalone on a fresh cluster.
+This runs: `flink-cert-manager` → `flink-operator-install` → `cmf-install` → `cmf-env-create` → `flink-deploy`. `flink-up` is self-contained and can also be run standalone on a fresh cluster.
 
 Once the Flink JobManager pod is running:
 
 ```bash
 make flink-ui       # http://localhost:8081
+make cmf-open       # http://localhost:8080/cmf/api/v1/environments
+```
+
+To expose the Flink tab inside Control Center, inject the CMF proxy sidecar:
+
+```bash
+make cmf-proxy-inject
 ```
 
 ---
@@ -226,11 +249,11 @@ make flink-ui       # http://localhost:8081
 
 | Target | What it does |
 |--------|-------------|
-| `make up` | Full stack: Minikube + CP + Kafka UI |
-| `make flink-up` | cert-manager + Flink Operator + Flink cluster |
-| `make down` | Remove CP, Kafka UI, and Operator (Minikube keeps running) |
-| `make flink-down` | Remove Flink cluster, Operator, and cert-manager |
-| `make teardown` | Full teardown: everything + stop Minikube |
+| `make cp-up` | Full stack: Minikube + CP + Kafka UI |
+| `make flink-up` | cert-manager + Confluent Flink Operator + CMF + Flink cluster |
+| `make cp-down` | Remove CP, Kafka UI, and Operator (Minikube keeps running) |
+| `make flink-down` | Remove Flink cluster, CMF, Operator, and cert-manager |
+| `make confluent-teardown` | Full teardown: everything + stop Minikube |
 
 ---
 
@@ -268,7 +291,7 @@ make flink-ui       # http://localhost:8081
 | `cp-deploy` | Deploy Kafka (KRaft), Schema Registry, Connect, ksqlDB, REST Proxy, Control Center |
 | `cp-watch` | Watch pod startup live (Ctrl+C to exit) |
 | `cp-status` | Show current pod status |
-| `cp-delete` | Remove all CP components |
+| `cp-delete` | Remove all CP components and leftover PVCs |
 
 ### **6.5 Phase 5 — Control Center**
 
@@ -280,21 +303,34 @@ make flink-ui       # http://localhost:8081
 
 | Target | Description |
 |--------|-------------|
-| `flink-cert-manager` | Install cert-manager (Flink Operator dependency) |
-| `flink-operator-install` | Install the Flink Kubernetes Operator |
+| `flink-cert-manager` | Install cert-manager (Confluent Flink Operator dependency) |
+| `flink-operator-install` | Install the Confluent Flink Kubernetes Operator (`confluentinc/flink-kubernetes-operator`) |
 | `flink-operator-status` | Show Flink Operator pod status |
-| `flink-operator-uninstall` | Remove the Flink Operator Helm release |
-| `flink-deploy` | Deploy the Flink session cluster |
+| `flink-operator-uninstall` | Remove the Confluent Flink Operator Helm release |
+| `flink-deploy` | Deploy the Flink session cluster using `FLINK_MANIFEST` |
 | `flink-status` | Show Flink pods and FlinkDeployment CRs |
 | `flink-ui` | Port-forward Flink UI and open `http://localhost:8081` |
 | `flink-delete` | Delete the Flink session cluster |
 | `cert-manager-uninstall` | Remove cert-manager |
 
-### **6.7 Phase 7 — Kafka UI (Provectus)**
+### **6.7 Phase 7 — Confluent Manager for Apache Flink (CMF)**
 
 | Target | Description |
 |--------|-------------|
-| `kafka-ui-install` | Install Kafka UI connected to the local CP cluster |
+| `cmf-install` | Install CMF via Helm (`confluent-manager-for-apache-flink`) and wait for pod readiness |
+| `cmf-env-create` | Create a Flink environment (`CMF_ENV_NAME`) in CMF pointing to the `confluent` namespace |
+| `cmf-status` | Show CMF pod status and list registered Flink environments |
+| `cmf-open` | Port-forward CMF REST API and open `http://localhost:8080/cmf/api/v1/environments` |
+| `cmf-uninstall` | Uninstall CMF (safe to run even if not installed) |
+| `cmf-proxy-inject` | Patch the C3 StatefulSet with a `socat` sidecar to expose the Flink tab in Control Center |
+| `cmf-proxy-remove` | Remove the CMF proxy sidecar and resume CFK reconciliation |
+| `cmf-proxy-logs` | Stream logs from the `cmf-proxy` sidecar in the C3 pod |
+
+### **6.8 Phase 8 — Kafka UI (Provectus)**
+
+| Target | Description |
+|--------|-------------|
+| `kafka-ui-install` | Install Kafka UI connected to the local CP cluster (Kafka + Schema Registry + Connect) |
 | `kafka-ui-status` | Show Kafka UI pod status |
 | `kafka-ui-open` | Port-forward Kafka UI and open `http://localhost:8080` |
 | `kafka-ui-uninstall` | Remove Kafka UI |
@@ -308,23 +344,29 @@ All variables are overridable at the command line. Defaults:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `NAMESPACE` | `confluent` | Kubernetes namespace |
+| `CONFLUENT_MANIFEST` | `k8s/base/confluent-platform-c3++.yaml` | Path to Confluent Platform manifest |
 | `MINIKUBE_CPUS` | `6` | vCPUs allocated to Minikube |
 | `MINIKUBE_MEM` | `20480` | Memory in MB |
 | `MINIKUBE_DISK` | `50g` | Disk size |
-| `FLINK_OPERATOR_VER` | `1.14.0` | Flink Kubernetes Operator version |
-| `FLINK_IMAGE` | `flink:2.2` | Flink container image |
-| `FLINK_VERSION` | `v2_2` | Flink API version string for the FlinkDeployment CR |
+| `FLINK_OPERATOR_VER` | `1.130.0` | Confluent Flink Kubernetes Operator version |
+| `FLINK_IMAGE` | `confluentinc/cp-flink:2.1.1-cp1-java21-arm64` | Flink container image |
+| `FLINK_VERSION` | `v2_1` | Flink API version string for the FlinkDeployment CR |
 | `FLINK_CLUSTER_NAME` | `flink-basic` | Name of the FlinkDeployment resource |
 | `FLINK_MANIFEST` | `k8s/base/flink-basic-deployment.yaml` | Path to FlinkDeployment template |
-| `CERT_MANAGER_VER` | `v1.17.1` | cert-manager version |
+| `CERT_MANAGER_VER` | `v1.18.2` | cert-manager version |
+| `CMF_VER` | `2.1.0` | Confluent Manager for Apache Flink version |
+| `CMF_PORT` | `8080` | CMF REST API local port |
+| `CMF_ENV_NAME` | `dev-local` | Flink environment name registered in CMF |
 | `C3_PORT` | `9021` | Control Center local port |
 | `FLINK_UI_PORT` | `8081` | Flink UI local port |
 | `KAFKA_UI_PORT` | `8080` | Kafka UI local port |
 
-Example — deploy Flink 2.1 instead of 2.2:
+> **Note:** CMF uses the Confluent-packaged Flink operator (`confluentinc/flink-kubernetes-operator`) and `confluentinc/cp-flink` images — not the Apache OSS Flink operator or `flink` Docker Hub image.
+
+Example — deploy a specific Flink image:
 
 ```bash
-make flink-deploy FLINK_IMAGE=flink:2.1 FLINK_VERSION=v2_1
+make flink-deploy FLINK_IMAGE=confluentinc/cp-flink:2.1.1-cp1-java21 FLINK_VERSION=v2_1
 ```
 
 ---
@@ -348,10 +390,11 @@ make flink-deploy FLINK_IMAGE=flink:2.1 FLINK_VERSION=v2_1
 │   └── manual_deployment.pdf  
 └── k8s/
     └── base/
-        └── flink-basic-deployment.yaml # FlinkDeployment CR template
+        ├── confluent-platform-c3++.yaml    # Confluent Platform manifest (KRaft + all components)
+        └── flink-basic-deployment.yaml     # FlinkDeployment CR template
 ```
 
-> The `flink-basic-deployment.yaml` is a template, `FLINK_IMAGE` and `FLINK_VERSION` are substituted at deploy time via `envsubst`. Do not apply it directly with `kubectl apply`.
+> The `flink-basic-deployment.yaml` is a template — `FLINK_IMAGE` and `FLINK_VERSION` are substituted at deploy time via `envsubst`. Do not apply it directly with `kubectl apply`.
 
 ---
 
@@ -360,15 +403,18 @@ make flink-deploy FLINK_IMAGE=flink:2.1 FLINK_VERSION=v2_1
 Remove everything and stop Minikube:
 
 ```bash
-make teardown
+make confluent-teardown
 ```
 
 To keep Minikube running but remove all deployed components:
 
 ```bash
-make flink-down   # Flink cluster + operator + cert-manager
-make down         # CP + Kafka UI + CFK Operator
+make flink-down   # Flink cluster + CMF + operator + cert-manager
+make cp-down      # CP + Kafka UI + CFK Operator
 ```
 
+---
+
 ## **10.0 Manual Deployment Instructions**
+
 For users who want to understand the underlying steps without using the Makefile, see [docs/manual_deployment.md](docs/manual_deployment.md).

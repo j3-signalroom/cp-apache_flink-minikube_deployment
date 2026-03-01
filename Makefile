@@ -14,7 +14,7 @@ MINIKUBE_DISK       ?= 50g
 C3_PORT             ?= 9021
 FLINK_OPERATOR_VER  ?= 1.130.0
 # CMF manages Flink via confluentinc/cp-flink images — not the open-source flink image
-FLINK_IMAGE         ?= confluentinc/cp-flink:2.1.1-cp1-java21
+FLINK_IMAGE         ?= confluentinc/cp-flink:2.1.1-cp1-java21-arm64
 FLINK_VERSION       ?= v2_1
 FLINK_CLUSTER_NAME  ?= flink-basic
 FLINK_UI_PORT       ?= 8081
@@ -318,10 +318,10 @@ cmf-proxy-inject: ## Patch C3 StatefulSet with socat sidecar (localhost:8080 →
 	@printf '%s' '[{"op":"add","path":"/spec/template/spec/containers/-","value":{"name":"cmf-proxy","image":"alpine/socat:latest","args":["TCP-LISTEN:8080,fork,reuseaddr","TCP:cmf-service.confluent.svc.cluster.local:80"]}}]' \
 		> /tmp/cmf-proxy-patch.json
 	kubectl patch statefulset controlcenter -n $(NAMESPACE) --type=json --patch-file=/tmp/cmf-proxy-patch.json
-	@echo "→ Restarting controlcenter pod to pick up the new sidecar..."
-	kubectl rollout restart statefulset/controlcenter -n $(NAMESPACE)
-	@echo "→ Waiting for rollout to complete (timeout 3m)..."
-	kubectl rollout status statefulset/controlcenter -n $(NAMESPACE) --timeout=180s
+	@echo "→ Deleting pod to restart from patched StatefulSet (avoids CFK rollout reconciliation)..."
+	kubectl delete pod controlcenter-0 -n $(NAMESPACE)
+	@echo "→ Waiting for pod to be ready (timeout 3m)..."
+	kubectl wait --for=condition=ready pod/controlcenter-0 -n $(NAMESPACE) --timeout=180s
 	@echo "✔ cmf-proxy sidecar injected. C3 localhost:8080 now proxies to cmf-service:80."
 	@echo "   Verify with: make cmf-proxy-logs"
 

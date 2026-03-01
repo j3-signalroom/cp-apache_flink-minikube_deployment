@@ -129,10 +129,14 @@ spec:
       - confluent.controlcenter.command.topic.replication=1
       - confluent.metrics.topic.replication=1
       - confluent.monitoring.interceptor.topic.replication=1
-      # CMF integration: resolves the localhost:8080 degraded status warning.
-      # C3 next-gen polls this endpoint to display Flink environments and applications.
-      # CMF must be running (make flink-up) for this to resolve fully.
-      - confluent.controlcenter.flink.rest.endpoint=http://cmf-service.confluent.svc.cluster.local:80
+      # CMF integration: enables the Flink tab in C3 next-gen 2.2.
+      # confluent.controlcenter.cmf.enable=true activates the Flink UI.
+      # confluent.controlcenter.cmf.url points to the CMF service.
+      # Note: C3 2.2 hardcodes localhost:8080 regardless of cmf.url — run:
+      #   make cmf-proxy-inject
+      # to inject a socat sidecar that proxies localhost:8080 → cmf-service:80.
+      - confluent.controlcenter.cmf.enable=true
+      - confluent.controlcenter.cmf.url=http://cmf-service.confluent.svc.cluster.local:80
   # NOTE: cp-enterprise-control-center-next-gen:2.2.0 ignores
   # confluent.controlcenter.flink.rest.endpoint and hardcodes localhost:8080
   # as its CMF target. CFK's ControlCenter CRD does not support podTemplate.sidecars,

@@ -31,6 +31,7 @@ A Makefile-driven quickstart that deploys a full local streaming stack on Miniku
 + [**8.0 Repository Layout**](#80-repository-layout)
 + [**9.0 Teardown**](#90-teardown)
 + [**10.0 Manual Deployment Instructions**](#100-manual-deployment-instructions)
++ [**11.0 Resources**](#110-resources)
 <!-- tocstop -->
 
 ---
@@ -418,3 +419,10 @@ make cp-down      # CP + Kafka UI + CFK Operator
 ## **10.0 Manual Deployment Instructions**
 
 For users who want to understand the underlying steps without using the Makefile, see [docs/manual_deployment.md](docs/manual_deployment.md).
+
+---
+
+## **11.0 Resources**
+- [Manage Confluent Platform with Confluent for Kubernetes](https://docs.confluent.io/operator/current/co-manage-overview.html)
+
+- [Get Started with Confluent Platform for Apache Flink](https://docs.confluent.io/platform/current/flink/get-started/overview.html)
